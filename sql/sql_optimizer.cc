@@ -32,7 +32,7 @@
 */
 
 #include "sql_optimizer.h"
-
+#include "log.h"
 #include "my_bit.h"              // my_count_bits
 #include "abstract_query_plan.h" // Join_plan
 #include "debug_sync.h"          // DEBUG_SYNC
@@ -372,6 +372,7 @@ JOIN::optimize()
 
   // Set up join order and initial access paths
   THD_STAGE_INFO(thd, stage_statistics);
+  sql_print_information("[%s:%d] call make_join_plan", __FILE__, __LINE__);
   if (make_join_plan())
   {
     if (thd->killed)
@@ -5018,6 +5019,7 @@ void JOIN::set_prefix_tables()
 
 bool JOIN::make_join_plan()
 {
+  sql_print_information("[%s:%d] ", __FILE__, __LINE__);
   DBUG_ENTER("JOIN::make_join_plan");
 
   SARGABLE_PARAM *sargables= NULL;
@@ -5057,13 +5059,16 @@ bool JOIN::make_join_plan()
 
   if (!(select_lex->active_options() & OPTION_NO_CONST_TABLES))
   {
+    sql_print_information("[%s:%d] const_tables: %d, tables: %d", __FILE__, __LINE__, const_tables, tables);
     // Detect tables that are const (0 or 1 row) and read their contents. 
     if (extract_const_tables())
       DBUG_RETURN(true);
 
+    sql_print_information("[%s:%d] const_tables: %d, tables: %d", __FILE__, __LINE__, const_tables, tables);
     // Detect tables that are functionally dependent on const values.
     if (extract_func_dependent_tables())
       DBUG_RETURN(true);
+    sql_print_information("[%s:%d] const_tables: %d, tables: %d", __FILE__, __LINE__, const_tables, tables);
   }
   // Possibly able to create more sargable predicates from const rows.
   if (const_tables && sargables)
@@ -5088,6 +5093,7 @@ bool JOIN::make_join_plan()
     DBUG_RETURN(true);
 
   // Choose the table order based on analysis done so far.
+  sql_print_information("[%s:%d] call choose_table_order", __FILE__, __LINE__);
   if (Optimize_table_order(thd, this, NULL).choose_table_order())
     DBUG_RETURN(true);
 
@@ -5467,6 +5473,37 @@ bool JOIN::extract_const_tables()
   The tables are given the type JT_CONST.
 */
 
+void print_table_info(TABLE * table)
+{
+  sql_print_information("table name: %s", table->s->table_name.str);
+  sql_print_information("keys: %d", table->s->keys);
+  KEY *key_info = table->s->key_info;
+  uint keys = table->s->keys;
+  for (; keys > 0; keys--, key_info++)
+    {
+      sql_print_information("key name: %s, user_defined_key_parts: %u, actual_key_parts: %u",
+			    key_info->name, key_info->user_defined_key_parts, key_info->actual_key_parts);
+      {
+	sql_print_information("user_defined_key_parts:");
+	KEY_PART_INFO *key_part = key_info->key_part;
+	uint user_defined_key_parts = key_info->user_defined_key_parts;
+	for (; user_defined_key_parts > 0; user_defined_key_parts--, key_part++)
+	  {
+	    sql_print_information("offset: %u, field_name: %s", key_part->offset, key_part->field->field_name);
+	  }
+      }
+      {
+	sql_print_information("actual_key_parts:");
+	KEY_PART_INFO *key_part = key_info->key_part;
+	uint actual_key_parts = key_info->actual_key_parts;
+	for (; actual_key_parts > 0; actual_key_parts--, key_part++)
+	  {
+	    sql_print_information("offset: %u, field_name: %s", key_part->offset, key_part->field->field_name);
+	  }
+      }
+    }
+}
+
 bool JOIN::extract_func_dependent_tables()
 {
   // loop until no more const tables are found
@@ -5481,9 +5518,24 @@ bool JOIN::extract_func_dependent_tables()
     // Loop over all tables that are not already determined to be const
     for (JOIN_TAB **pos= best_ref + const_tables; *pos; pos++)
     {
+      
       JOIN_TAB *const tab= *pos;
       TABLE *const table= tab->table();
       TABLE_LIST *const tl= tab->table_ref;
+      
+      sql_print_information("[%s:%d] table_alias: %s", __FILE__, __LINE__, table->alias);
+      sql_print_information("[%s:%d] table: %s, table: %s", __FILE__, __LINE__, table->s->table_name.str, tl->table != NULL ? tl->table->s->table_name.str:"");
+      //print_table_info(table);
+      
+      {
+	Field **field = table->visible_field_ptr();
+	uint count = table->visible_field_count();
+	sql_print_information("[%s:%d] field count: %d", __FILE__, __LINE__, count);
+	for (; count > 0; count--, field++)
+	  {
+	    sql_print_information("[%s:%d] table_name: %s, field_name: %s", __FILE__, __LINE__, *((*field)->table_name), (*field)->field_name);
+	  }
+      }
       /* 
         If equi-join condition by a key is null rejecting and after a
         substitution of a const table the key value happens to be null
@@ -5492,6 +5544,7 @@ bool JOIN::extract_func_dependent_tables()
       Key_use *keyuse= tab->keyuse();
       if (keyuse && tab->join_cond() && !tab->embedding_map)
       {
+	sql_print_information("[%s:%d]", __FILE__, __LINE__);
         /* 
           When performing an outer join operation if there are no matching rows
           for the single row of the outer table all the inner tables are to be
@@ -5518,6 +5571,7 @@ bool JOIN::extract_func_dependent_tables()
 
       if (tab->dependent)              // If dependent on some table
       {
+	sql_print_information("[%s:%d]", __FILE__, __LINE__);
         // All dependent tables must be const
         if (tab->dependent & ~const_table_map)
           continue;
@@ -5551,6 +5605,9 @@ bool JOIN::extract_func_dependent_tables()
 
       if ((keyuse= tab->keyuse()))
       {
+	sql_print_information("[%s:%d] table: %s, found_const_table_map: %llX",
+			      __FILE__, __LINE__, tl->table->s->table_name.str, found_const_table_map);
+	
         while (keyuse->table_ref == tl)
         {
           Key_use *const start_keyuse= keyuse;
@@ -5563,15 +5620,24 @@ bool JOIN::extract_func_dependent_tables()
           {
             if (keyuse->val->type() != Item::NULL_ITEM && !keyuse->optimize)
             {
+	      sql_print_information("found_const_table_map: %llX, used_tables: %llX",
+				    found_const_table_map, keyuse->used_tables);
               if (!((~found_const_table_map) & keyuse->used_tables))
-                const_ref.set_bit(keyuse->keypart);
+		{
+		  sql_print_information("const_ref set_bit key: %d, keypart: %d",
+					keyuse->key, keyuse->keypart);
+		  const_ref.set_bit(keyuse->keypart);
+		}
               else
-                refs|= keyuse->used_tables;
+		{
+		  refs|= keyuse->used_tables;
+		}
               eq_part.set_bit(keyuse->keypart);
             }
             keyuse++;
           } while (keyuse->table_ref == tl && keyuse->key == key);
-
+	  sql_print_information("[%s:%d] key: %d keyuse->key: %d",
+				__FILE__, __LINE__, key, keyuse->key);
           /*
             Extract const tables with proper key dependencies.
             Exclude tables that
@@ -5581,6 +5647,14 @@ bool JOIN::extract_func_dependent_tables()
              4. have an expensive outer join condition.
              5. are blocked by handler for const table optimize.
           */
+	  sql_print_information("user_defined_key_parts: %d", table->key_info[key].user_defined_key_parts);
+	  sql_print_information("check %d,%d,%d,%d,%d,%d",
+			       eq_part.is_prefix(table->key_info[key].user_defined_key_parts),
+			       !table->fulltext_searched,
+			       !tl->outer_join_nest(),
+			       !(tl->embedding && tl->embedding->sj_cond()),
+			       !(tab->join_cond() && tab->join_cond()->is_expensive()),
+			       !(table->file->ha_table_flags() & HA_BLOCK_CONST_TABLE));
           if (eq_part.is_prefix(table->key_info[key].user_defined_key_parts) &&
               !table->fulltext_searched &&                           // 1
               !tl->outer_join_nest() &&                              // 2
@@ -5590,9 +5664,11 @@ bool JOIN::extract_func_dependent_tables()
           {
             if (table->key_info[key].flags & HA_NOSAME)
             {
+	      sql_print_information("[%s:%d] HA_NOSAME", __FILE__, __LINE__);
               if (const_ref == eq_part)
               {                        // Found everything for ref.
                 ref_changed = true;
+		sql_print_information("[%s:%d] mark_const_table key: %d", __FILE__, __LINE__, start_keyuse->key);
                 mark_const_table(tab, start_keyuse);
                 if (create_ref_for_key(this, tab, start_keyuse,
                                        found_const_table_map))
@@ -5609,8 +5685,19 @@ bool JOIN::extract_func_dependent_tables()
                 found_ref|= refs;       // Table is const if all refs are const
             }
             else if (const_ref == eq_part)
-              tab->const_keys.set_bit(key);
+	      {
+		sql_print_information("[%s:%d] const_ref == eq_part", __FILE__, __LINE__);
+		tab->const_keys.set_bit(key);
+	      }
+	    else
+	      {
+		sql_print_information("[%s:%d]", __FILE__, __LINE__);
+	      }
           }
+	  else
+	    {
+	      sql_print_information("[%s:%d]", __FILE__, __LINE__);
+	    }
 	}
       }
     }
@@ -6919,6 +7006,7 @@ add_key_field(Key_field **key_fields, uint and_level, Item_func *cond,
               uint num_values, table_map usable_tables,
               SARGABLE_PARAM **sargables)
 {
+  sql_print_information("[%s:%d] ", __FILE__, __LINE__);
   DBUG_ASSERT(eq_func || sargables);
 
   Field *const field= item_field->field;
@@ -6943,6 +7031,7 @@ add_key_field(Key_field **key_fields, uint and_level, Item_func *cond,
     return;
   if (!(field->flags & PART_KEY_FLAG))
   {
+    sql_print_information("[%s:%d] ", __FILE__, __LINE__);
     // Don't remove column IS NULL on a LEFT JOIN table
     if (!eq_func || (*value)->type() != Item::NULL_ITEM ||
         !tl->table->is_nullable() || field->real_maybe_null())
@@ -6952,10 +7041,12 @@ add_key_field(Key_field **key_fields, uint and_level, Item_func *cond,
   }
   else
   {
+    sql_print_information("[%s:%d] ", __FILE__, __LINE__);
     table_map used_tables= 0;
     bool optimizable= false;
     for (uint i=0; i<num_values; i++)
     {
+      sql_print_information("[%s:%d] ", __FILE__, __LINE__);
       used_tables|=(value[i])->used_tables();
       if (!((value[i])->used_tables() & (tl->map() | RAND_TABLE_BIT)))
         optimizable= true;
@@ -6964,6 +7055,7 @@ add_key_field(Key_field **key_fields, uint and_level, Item_func *cond,
       return;
     if (!(usable_tables & tl->map()))
     {
+      sql_print_information("[%s:%d] ", __FILE__, __LINE__);
       if (!eq_func || (*value)->type() != Item::NULL_ITEM ||
           !tl->table->is_nullable() || field->real_maybe_null())
         return; // Can't use left join optimize
@@ -6971,6 +7063,7 @@ add_key_field(Key_field **key_fields, uint and_level, Item_func *cond,
     }
     else
     {
+      sql_print_information("[%s:%d] ", __FILE__, __LINE__);
       JOIN_TAB *stat= tl->table->reginfo.join_tab;
       key_map possible_keys=field->key_start;
       possible_keys.intersect(tl->table->keys_in_use_for_query);
@@ -7033,16 +7126,20 @@ add_key_field(Key_field **key_fields, uint and_level, Item_func *cond,
       */
       if (field->result_type() == STRING_RESULT)
       {
+	sql_print_information("[%s:%d] ", __FILE__, __LINE__);
         if ((*value)->result_type() != STRING_RESULT)
         {
+	  sql_print_information("[%s:%d] ", __FILE__, __LINE__);
           if (field->cmp_type() != (*value)->result_type())
           {
+	    sql_print_information("[%s:%d] ", __FILE__, __LINE__);
             warn_index_not_applicable(stat->join()->thd, field, possible_keys);
             return;
           }
         }
         else
         {
+	  sql_print_information("[%s:%d] ", __FILE__, __LINE__);
           /*
             Can't optimize datetime_column=indexed_varchar_column,
             also can't use indexes if the effective collation
@@ -7065,6 +7162,7 @@ add_key_field(Key_field **key_fields, uint and_level, Item_func *cond,
                field->charset() != cond->compare_collation()) ||
               field_time_cmp_date(field, value[0]))
           {
+	    sql_print_information("[%s:%d] ", __FILE__, __LINE__);
             warn_index_not_applicable(stat->join()->thd, field, possible_keys);
             return;
           }
@@ -7080,6 +7178,7 @@ add_key_field(Key_field **key_fields, uint and_level, Item_func *cond,
       if (value[0]->result_type() == STRING_RESULT &&
           value[0]->field_type() == MYSQL_TYPE_JSON)
       {
+	sql_print_information("[%s:%d] ", __FILE__, __LINE__);
         warn_index_not_applicable(stat->join()->thd, field, possible_keys);
         return;
       }
@@ -7107,6 +7206,7 @@ add_key_field(Key_field **key_fields, uint and_level, Item_func *cond,
       ((Item_field*)real)->field->maybe_null();
 
   /* Store possible eq field */
+  sql_print_information("[%s:%d] ", __FILE__, __LINE__);
   new (*key_fields)
     Key_field(item_field, *value, and_level, exists_optimize, eq_func,
               null_rejecting, NULL,
@@ -7283,11 +7383,13 @@ add_key_fields(JOIN *join, Key_field **key_fields, uint *and_level,
   DBUG_ENTER("add_key_fields");
   if (cond->type() == Item_func::COND_ITEM)
   {
+    sql_print_information("[%s:%d] ", __FILE__, __LINE__);
     List_iterator_fast<Item> li(*((Item_cond*) cond)->argument_list());
     Key_field *org_key_fields= *key_fields;
 
     if (((Item_cond*) cond)->functype() == Item_func::COND_AND_FUNC)
     {
+      sql_print_information("[%s:%d] ", __FILE__, __LINE__);
       Item *item;
       while ((item=li++))
         add_key_fields(join, key_fields, and_level, item, usable_tables,
@@ -7297,12 +7399,14 @@ add_key_fields(JOIN *join, Key_field **key_fields, uint *and_level,
     }
     else
     {
+      sql_print_information("[%s:%d] ", __FILE__, __LINE__);
       (*and_level)++;
       add_key_fields(join, key_fields, and_level, li++, usable_tables,
                      sargables);
       Item *item;
       while ((item=li++))
       {
+	sql_print_information("[%s:%d] ", __FILE__, __LINE__);
         Key_field *start_key_fields= *key_fields;
         (*and_level)++;
         add_key_fields(join, key_fields, and_level, item, usable_tables,
@@ -7320,15 +7424,18 @@ add_key_fields(JOIN *join, Key_field **key_fields, uint *and_level,
     but need to set cond_guard for Key_use elements generated from it.
   */
   {
+    sql_print_information("[%s:%d] ", __FILE__, __LINE__);
     if (cond->type() == Item::FUNC_ITEM &&
         ((Item_func*)cond)->functype() == Item_func::TRIG_COND_FUNC)
     {
+      sql_print_information("[%s:%d] ", __FILE__, __LINE__);
       Item *cond_arg= ((Item_func*)cond)->arguments()[0];
       if (!join->group_list && !join->order &&
           join->unit->item && 
           join->unit->item->substype() == Item_subselect::IN_SUBS &&
           !join->unit->is_union())
       {
+	sql_print_information("[%s:%d] ", __FILE__, __LINE__);
         Key_field *save= *key_fields;
         add_key_fields(join, key_fields, and_level, cond_arg, usable_tables,
                        sargables);
@@ -7346,9 +7453,11 @@ add_key_fields(JOIN *join, Key_field **key_fields, uint *and_level,
   Item_func *cond_func= (Item_func*) cond;
   switch (cond_func->select_optimize()) {
   case Item_func::OPTIMIZE_NONE:
+    sql_print_information("[%s:%d] ", __FILE__, __LINE__);
     break;
   case Item_func::OPTIMIZE_KEY:
   {
+    sql_print_information("[%s:%d] ", __FILE__, __LINE__);
     Item **values;
     /*
       Build list of possible keys for 'a BETWEEN low AND high'.
@@ -7486,6 +7595,7 @@ add_key_fields(JOIN *join, Key_field **key_fields, uint *and_level,
   }
   case Item_func::OPTIMIZE_OP:
   {
+    sql_print_information("[%s:%d] ", __FILE__, __LINE__);
     bool equal_func=(cond_func->functype() == Item_func::EQ_FUNC ||
 		     cond_func->functype() == Item_func::EQUAL_FUNC);
 
@@ -7509,6 +7619,7 @@ add_key_fields(JOIN *join, Key_field **key_fields, uint *and_level,
     break;
   }
   case Item_func::OPTIMIZE_NULL:
+    sql_print_information("[%s:%d] ", __FILE__, __LINE__);
     /* column_name IS [NOT] NULL */
     if (is_local_field (cond_func->arguments()[0]) &&
 	!(cond_func->used_tables() & OUTER_REF_TABLE_BIT))
@@ -7523,6 +7634,7 @@ add_key_fields(JOIN *join, Key_field **key_fields, uint *and_level,
     }
     break;
   case Item_func::OPTIMIZE_EQUAL:
+    sql_print_information("[%s:%d] ", __FILE__, __LINE__);
     Item_equal *item_equal= (Item_equal *) cond;
     Item *const_item= item_equal->get_const();
     if (const_item)
@@ -7598,8 +7710,13 @@ add_key_part(Key_use_array *keyuse_array, Key_field *key_field)
       uint key_parts= actual_key_parts(&table->key_info[key]);
       for (uint part=0 ; part <  key_parts ; part++)
       {
+	
 	if (field->eq(table->key_info[key].key_part[part].field))
 	{
+	  sql_print_information("table: %s, key: %d(%s), part: %d(%s) match",
+			      table->s->table_name.str,
+			      key, table->key_info[key].name,
+			      part, table->key_info[key].key_part[part].field->field_name);
           const Key_use keyuse(tl,
                                key_field->val,
                                key_field->val->used_tables(),
@@ -7614,6 +7731,13 @@ add_key_part(Key_use_array *keyuse_array, Key_field *key_field)
           if (keyuse_array->push_back(keyuse))
             return true;              /* purecov: inspected */
 	}
+	else
+	  {
+	    sql_print_information("table: %s, key: %d(%s), part: %d(%s) not match",
+			      table->s->table_name.str,
+			      key, table->key_info[key].name,
+			      part, table->key_info[key].key_part[part].field->field_name);
+	  }
       }
     }
   }
@@ -8162,6 +8286,7 @@ update_ref_and_keys(THD *thd, Key_use_array *keyuse,JOIN_TAB *join_tab,
   if (cond)
   {
     add_key_fields(join, &end, &and_level, cond, normal_tables, sargables);
+    sql_print_information("key field count: %ld", end - field);
     for (Key_field *fld= field; fld != end ; fld++)
     {
       /* Mark that we can optimize LEFT JOIN */
@@ -8215,6 +8340,7 @@ update_ref_and_keys(THD *thd, Key_use_array *keyuse,JOIN_TAB *join_tab,
   /* fill keyuse with found key parts */
   for ( ; field != end ; field++)
   {
+    sql_print_information("call add_key_part");
     if (add_key_part(keyuse,field))
       return true;
   }
@@ -8238,10 +8364,31 @@ update_ref_and_keys(THD *thd, Key_use_array *keyuse,JOIN_TAB *join_tab,
   if (!keyuse->empty())
   {
     Key_use *save_pos, *use;
-
+    {
+      sql_print_information("before sort");
+      for (uint idx = 0; idx < keyuse->size(); idx++)
+	{
+	  Key_use use = keyuse->at(idx);
+	  sql_print_information("idx: %d, table: %s key: %d(%s), part: %d(%s)",
+				idx, use.table_ref->table->s->table_name.str,
+				use.key, use.table_ref->table->s->key_info[use.key].name,
+				use.keypart, use.table_ref->table->s->key_info[use.key].key_part[use.keypart].field->field_name);
+	}
+    }
     my_qsort(keyuse->begin(), keyuse->size(), keyuse->element_size(),
              reinterpret_cast<qsort_cmp>(sort_keyuse));
 
+    {
+      sql_print_information("after sort");
+      for (uint idx = 0; idx < keyuse->size(); idx++)
+	{
+	  Key_use use = keyuse->at(idx);
+	  sql_print_information("idx: %d, table: %s key: %d(%s), part: %d(%s)",
+				idx, use.table_ref->table->s->table_name.str,
+				use.key, use.table_ref->table->s->key_info[use.key].name,
+				use.keypart, use.table_ref->table->s->key_info[use.key].key_part[use.keypart].field->field_name);
+	}
+    }
     const Key_use key_end(NULL, NULL, 0, 0, 0, 0, 0, 0, false, NULL, 0);
     if (keyuse->push_back(key_end)) // added for easy testing
       return TRUE;
@@ -8286,6 +8433,18 @@ update_ref_and_keys(THD *thd, Key_use_array *keyuse,JOIN_TAB *join_tab,
     i= (uint) (save_pos - keyuse->begin());
     keyuse->at(i) = key_end;
     keyuse->chop(i);
+
+    {
+      sql_print_information("after removal");
+      for (uint idx = 0; idx < keyuse->size(); idx++)
+	{
+	  Key_use use = keyuse->at(idx);
+	  sql_print_information("idx: %d, table: %s key: %d(%s), part: %d(%s)",
+				idx, use.table_ref->table->s->table_name.str,
+				use.key, use.table_ref->table->s->key_info[use.key].name,
+				use.keypart, use.table_ref->table->s->key_info[use.key].key_part[use.keypart].field->field_name);
+	}
+    }
   }
   print_keyuse_array(&thd->opt_trace, keyuse);
 
