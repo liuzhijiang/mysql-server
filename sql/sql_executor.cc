@@ -103,6 +103,7 @@ static bool cmp_buffer_with_ref(THD *thd, TABLE *table, TABLE_REF *tab_ref);
 void
 JOIN::exec()
 {
+  sql_print_information("enter JOIN::exec");
   Opt_trace_context * const trace= &thd->opt_trace;
   Opt_trace_object trace_wrapper(trace);
   Opt_trace_object trace_exec(trace, "join_execution");
@@ -882,6 +883,7 @@ Next_select_func JOIN::get_end_select_func()
 static int
 do_select(JOIN *join)
 {
+  sql_print_information("[%s:%d] enter do_select", __FILE__, __LINE__);
   int rc= 0;
   enum_nested_loop_state error= NESTED_LOOP_OK;
   DBUG_ENTER("do_select");
@@ -952,11 +954,19 @@ do_select(JOIN *join)
   }
   else
   {
+    sql_print_information("[%s:%d] ", __FILE__, __LINE__);
+    sql_print_information("[%s:%d] join->const_tables: %d", __FILE__, __LINE__, join->const_tables);
     QEP_TAB *qep_tab= join->qep_tab + join->const_tables;
     DBUG_ASSERT(join->primary_tables);
+    sql_print_information("[%s:%d] call first_select", __FILE__, __LINE__);
     error= join->first_select(join,qep_tab,0);
+    sql_print_information("[%s:%d] first_select error: %d", __FILE__, __LINE__, error);
     if (error >= NESTED_LOOP_OK)
+    {
+      sql_print_information("[%s:%d] error(%d) >= NESTED_LOOK_OK(%d)", __FILE__, __LINE__, error, NESTED_LOOP_OK);
+      sql_print_information("[%s:%d] call first_select", __FILE__, __LINE__);
       error= join->first_select(join,qep_tab,1);
+    }
   }
 
   join->thd->current_found_rows= join->send_records;
@@ -1056,6 +1066,9 @@ do_select(JOIN *join)
 enum_nested_loop_state
 sub_select_op(JOIN *join, QEP_TAB *qep_tab, bool end_of_records)
 {
+  //sql_print_information("enter sub_select_op");
+  //sql_print_information("[%s:%d] enter sub_select_op", __FILE__, __LINE__);
+  sql_print_information("[%s:%d] enter sub_select_op. qep_tab idx: %d, end_of_records: %d", __FILE__, __LINE__, qep_tab->idx(), end_of_records);
   DBUG_ENTER("sub_select_op");
 
   if (join->thd->killed)
@@ -1073,9 +1086,13 @@ sub_select_op(JOIN *join, QEP_TAB *qep_tab, bool end_of_records)
 
   if (end_of_records)
   {
+    sql_print_information("[%s:%d] call end_send", __FILE__, __LINE__);
     rc= op->end_send();
     if (rc >= NESTED_LOOP_OK)
+    {
+      sql_print_information("[%s:%d] call sub_select", __FILE__, __LINE__);
       rc= sub_select(join, qep_tab, end_of_records);
+    }
     DBUG_RETURN(rc);
   }
   if (qep_tab->prepare_scan())
@@ -1223,12 +1240,14 @@ sub_select_op(JOIN *join, QEP_TAB *qep_tab, bool end_of_records)
 enum_nested_loop_state
 sub_select(JOIN *join, QEP_TAB *const qep_tab,bool end_of_records)
 {
+  sql_print_information("[%s:%d] enter sub_select function. qep_tab idx: %d, end_of_records: %d",__FILE__, __LINE__,  qep_tab->idx(), end_of_records);
   DBUG_ENTER("sub_select");
 
   qep_tab->table()->reset_null_row();
 
   if (end_of_records)
   {
+    sql_print_information("[%s:%d] call next_select", __FILE__, __LINE__);
     enum_nested_loop_state nls=
       (*qep_tab->next_select)(join,qep_tab+1,end_of_records);
     DBUG_RETURN(nls);
@@ -1275,6 +1294,8 @@ sub_select(JOIN *join, QEP_TAB *const qep_tab,bool end_of_records)
   const bool pfs_batch_update= qep_tab->pfs_batch_update(join);
   if (pfs_batch_update)
     qep_tab->table()->file->start_psi_batch_mode();
+
+  int row_count = 0;
   while (rc == NESTED_LOOP_OK && join->return_tab >= qep_tab_idx)
   {
     int error;
@@ -1299,9 +1320,22 @@ sub_select(JOIN *join, QEP_TAB *const qep_tab,bool end_of_records)
     }
     else
     {
+      row_count++;
+      sql_print_information("[%s:%d] row count: %d, record: %p, record: %s", __FILE__, __LINE__, row_count, info->record, info->record);
+
+      uint idx = 0;
+      for (idx = 0; idx < qep_tab->table()->visible_field_count(); idx++)
+      {
+	Field *f = qep_tab->table()->visible_field_ptr()[idx];
+	sql_print_information("[%s:%d] field: %p, ptr: %p, ptr: %s", __FILE__, __LINE__, f, f->ptr, f->ptr);
+      }
+      
       if (qep_tab->keep_current_rowid)
         qep_tab->table()->file->position(qep_tab->table()->record[0]);
+
+      sql_print_information("[%s:%d] call evaluate_join_record",__FILE__, __LINE__);
       rc= evaluate_join_record(join, qep_tab);
+      sql_print_information("[%s:%d] call evaluate_join_record rc: %d",__FILE__, __LINE__, rc);
     }
   }
 
@@ -1483,6 +1517,7 @@ static int do_sj_reset(SJ_TMP_TABLE *sj_tbl)
 static enum_nested_loop_state
 evaluate_join_record(JOIN *join, QEP_TAB *const qep_tab)
 {
+  sql_print_information("[%s:%d] enter evaluate_join_record, qep_tab idx: %d", __FILE__, __LINE__,qep_tab->idx());
   bool not_used_in_distinct= qep_tab->not_used_in_distinct;
   ha_rows found_records=join->found_records;
   Item *condition= qep_tab->condition();
@@ -1648,8 +1683,9 @@ evaluate_join_record(JOIN *join, QEP_TAB *const qep_tab)
       enum enum_nested_loop_state rc;
       // A match is found for the current partial join prefix.
       qep_tab->found_match= true;
-
+      sql_print_information("[%s:%d] call next_select", __FILE__, __LINE__);
       rc= (*qep_tab->next_select)(join, qep_tab+1, 0);
+      sql_print_information("[%s:%d] call next_select rc: %d", __FILE__, __LINE__, rc);
       join->thd->get_stmt_da()->inc_current_row_for_condition();
       if (rc != NESTED_LOOP_OK)
         DBUG_RETURN(rc);
@@ -2900,6 +2936,7 @@ void QEP_TAB::set_pushed_table_access_method(void)
 static enum_nested_loop_state
 end_send(JOIN *join, QEP_TAB *qep_tab, bool end_of_records)
 {
+  sql_print_information("[%s:%d] enter end_send. qep_tab idx: ?, end_of_records: %d", __FILE__, __LINE__, end_of_records);
   DBUG_ENTER("end_send");
   /*
     When all tables are const this function is called with jointab == NULL.
@@ -4691,6 +4728,7 @@ QEP_tmp_table::put_record(bool end_of_records)
 enum_nested_loop_state
 QEP_tmp_table::end_send()
 {
+  sql_print_information("[%s:%d] call QEP_tmp_table::end_send", __FILE__, __LINE__);
   enum_nested_loop_state rc= NESTED_LOOP_OK;
   TABLE *table= qep_tab->table();
   JOIN *join= qep_tab->join();
@@ -4742,7 +4780,10 @@ QEP_tmp_table::end_send()
       rc= NESTED_LOOP_KILLED;
     }
     else
+    {
+      sql_print_information("[%s:%d] call evaluate_join_record", __FILE__, __LINE__);
       rc= evaluate_join_record(join, qep_tab);
+    }
   }
 
   // Finish rnd scn after sending records

@@ -922,6 +922,8 @@ void Optimize_table_order::best_access_path(JOIN_TAB *tab,
                                             const double prefix_rowcount,
                                             POSITION *pos)
 {
+  sql_print_information("[%s:%d] enter Optimize_table_order::best_access_path", __FILE__, __LINE__);
+  sql_print_information("[%s:%d] table: %s, disable_jbuf: %d", __FILE__, __LINE__, tab->table()->alias, disable_jbuf);
   bool found_condition = false;
   bool best_uses_jbuf = false;
   Opt_trace_context *const trace = &thd->opt_trace;
@@ -943,6 +945,7 @@ void Optimize_table_order::best_access_path(JOIN_TAB *tab,
                  !hint_table_state(join->thd, tab->table_ref->table, // 2
                                    BNL_HINT_ENUM, OPTIMIZER_SWITCH_BNL);
 
+  sql_print_information("[%s:%d] table: %s, disable_jbuf: %d", __FILE__, __LINE__, tab->table()->alias, disable_jbuf);
   DBUG_ENTER("Optimize_table_order::best_access_path");
 
   Opt_trace_object trace_wrapper(trace, "best_access_path");
@@ -1164,6 +1167,7 @@ void Optimize_table_order::best_access_path(JOIN_TAB *tab,
   pos->loosescan_key = MAX_KEY;
   pos->use_join_buffer = best_uses_jbuf;
 
+  sql_print_information("[%s:%d] table: %s, pos->use_join_buffer: %d", __FILE__, __LINE__, tab->table()->alias, pos->use_join_buffer);
   if (!best_ref &&
       idx == join->const_tables &&
       table == join->sort_by_table &&

@@ -3029,6 +3029,8 @@ static void revise_cache_usage(JOIN_TAB *join_tab)
 
 static bool setup_join_buffering(JOIN_TAB *tab, JOIN *join, uint no_jbuf_after)
 {
+  sql_print_information("[%s:%d] enter setup_join_buffering", __FILE__, __LINE__);
+  sql_print_information("[%s:%d]", __FILE__, __LINE__);
   ASSERT_BEST_REF_IN_JOIN_ORDER(join);
   Cost_estimate cost;
   ha_rows rows;
@@ -3039,6 +3041,7 @@ static bool setup_join_buffering(JOIN_TAB *tab, JOIN *join, uint no_jbuf_after)
   const bool bka_on = hint_table_state(join->thd, tab->table_ref->table,
                                        BKA_HINT_ENUM, OPTIMIZER_SWITCH_BKA);
 
+  sql_print_information("[%s:%d] table: %s, bnl_on: %d, bka_on: %d", __FILE__, __LINE__, tab->table()->alias, bnl_on, bka_on);
   const uint tableno = tab->idx();
   const uint tab_sj_strategy = tab->get_sj_strategy();
   bool use_bka_unique = false;
@@ -3046,6 +3049,8 @@ static bool setup_join_buffering(JOIN_TAB *tab, JOIN *join, uint no_jbuf_after)
 
   // Set preliminary join cache setting based on decision from greedy search
   tab->set_use_join_cache(tab->position()->use_join_buffer ? JOIN_CACHE::ALG_BNL : JOIN_CACHE::ALG_NONE);
+
+  sql_print_information("[%s:%d] use_join_cache: %d", __FILE__, __LINE__, tab->use_join_cache());
 
   if (tableno == join->const_tables)
   {
@@ -5461,7 +5466,7 @@ bool JOIN::extract_func_dependent_tables()
 
       sql_print_information("[%s:%d] table_alias: %s", __FILE__, __LINE__, table->alias);
       sql_print_information("[%s:%d] table: %s, table: %s", __FILE__, __LINE__, table->s->table_name.str, tl->table != NULL ? tl->table->s->table_name.str : "");
-      //print_table_info(table);
+      print_table_info(table);
 
       {
         Field **field = table->visible_field_ptr();

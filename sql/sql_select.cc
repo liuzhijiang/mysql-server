@@ -30,6 +30,7 @@
   @{
 */
 
+#include "log.h"
 #include "sql_select.h"
 #include "sql_table.h"                          // primary_key_name
 #include "sql_derived.h"
@@ -2031,6 +2032,7 @@ bool JOIN::setup_semijoin_materialized_table(JOIN_TAB *tab, uint tableno,
 
 void QEP_TAB::init_join_cache(JOIN_TAB *join_tab)
 {
+  sql_print_information("[%s:%d] enter QEP_TAB::init_join_cache", __FILE__, __LINE__);
   JOIN *const join_= join();
   DBUG_ASSERT(idx() > 0);
   ASSERT_BEST_REF_IN_JOIN_ORDER(join_);
@@ -2055,6 +2057,7 @@ void QEP_TAB::init_join_cache(JOIN_TAB *join_tab)
         first_sj_inner() != prev_tab->first_sj_inner())     // 3
       prev_cache= NULL;
   }
+  sql_print_information("[%s:%d] use_join_cache: %d", __FILE__, __LINE__, join_tab->use_join_cache());
   switch (join_tab->use_join_cache())
   {
   case JOIN_CACHE::ALG_BNL:
@@ -2078,6 +2081,7 @@ void QEP_TAB::init_join_cache(JOIN_TAB *join_tab)
                   });
   if (!op || op->init())
   {
+    sql_print_information("[%s:%d] !op||op->init()", __FILE__, __LINE__);
     /*
       OOM. If it's in creation of "op" it has thrown error.
       If it's in init() (allocation of the join buffer) it has not,
@@ -2115,7 +2119,10 @@ void QEP_TAB::init_join_cache(JOIN_TAB *join_tab)
     }
   }
   else
+  {
+    sql_print_information("[%s:%d] not !op||op->init()", __FILE__, __LINE__);
     this[-1].next_select= sub_select_op;
+  }
 }
 
 
@@ -2152,7 +2159,7 @@ make_join_readinfo(JOIN *join, uint no_jbuf_after)
   if (setup_semijoin_dups_elimination(join, no_jbuf_after))
     DBUG_RETURN(TRUE); /* purecov: inspected */
 
-
+  sql_print_information("[%s:%d] const tables: %d, tables: %d", __FILE__, __LINE__, join->const_tables, join->tables);
   for (uint i= join->const_tables; i < join->tables; i++)
   {
     QEP_TAB *const qep_tab= &join->qep_tab[i];
@@ -2188,8 +2195,12 @@ make_join_readinfo(JOIN *join, uint no_jbuf_after)
         DBUG_RETURN(TRUE); /* purecov: inspected */
     }
 
+    sql_print_information("[%s:%d] idx: %d, type: %d, table: %s, use_join_cache: %d", __FILE__, __LINE__, qep_tab->idx(), tab->type(), qep_tab->table()->alias, tab->use_join_cache());
     if (tab->use_join_cache() != JOIN_CACHE::ALG_NONE)
+    {
+      sql_print_information("[%s:%d] call QEP_TAB::init_join_cache", __FILE__, __LINE__);
       qep_tab->init_join_cache(tab);
+    }
 
     switch (qep_tab->type()) {
     case JT_EQ_REF:

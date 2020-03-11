@@ -30,6 +30,7 @@
   @{
 */
 
+#include "log.h"
 #include "sql_select.h"
 #include "key.h"
 #include "sql_optimizer.h"  // JOIN
@@ -225,6 +226,7 @@ void JOIN_CACHE::calc_record_fields()
 
 int JOIN_CACHE::alloc_fields(uint external_fields)
 {
+  sql_print_information("[%s:%d] enter JOIN_CACHE::alloc_fields", __FILE__, __LINE__);
   uint ptr_cnt= external_fields+blobs+1;
   uint fields_size= sizeof(CACHE_FIELD)*fields;
   field_descr= (CACHE_FIELD*) sql_alloc(fields_size +
@@ -343,6 +345,7 @@ void JOIN_CACHE::create_flag_fields()
 
 void JOIN_CACHE:: create_remaining_fields(bool all_read_fields)
 {
+  sql_print_information("[%s:%d] enter JOIN_CACHE::create_remaining_fields", __FILE__, __LINE__);
   CACHE_FIELD *copy= field_descr+flag_fields+data_field_count;
   CACHE_FIELD **copy_ptr= blob_ptr+data_field_ptr_count;
 
@@ -681,6 +684,7 @@ void JOIN_CACHE::restore_virtual_gcol_base_cols()
 
 int JOIN_CACHE_BNL::init()
 {
+  sql_print_information("[%s:%d] enter JOIN_CACHE_BNL::init", __FILE__, __LINE__);
   DBUG_ENTER("JOIN_CACHE::init");
 
   /*
@@ -1230,6 +1234,8 @@ bool bka_skip_index_tuple(range_seq_t rseq, char *range_info)
 
 uint JOIN_CACHE::write_record_data(uchar * link, bool *is_full)
 {
+  sql_print_information("[%s:%d] enter write_record_data", __FILE__, __LINE__);
+  sql_print_information("[%s:%d] idx: %d, table: %s", __FILE__, __LINE__, qep_tab->idx(), qep_tab->table()->alias);
   uchar *cp= pos;
   uchar *init_pos= cp;
  
@@ -1305,10 +1311,12 @@ uint JOIN_CACHE::write_record_data(uchar * link, bool *is_full)
   if (with_match_flag)
     *copy[0].str= 0;
 
+  sql_print_information("[%s:%d] flag_fields: %d, fields: %d", __FILE__, __LINE__, flag_fields, fields);
   /* First put into the cache the values of all flag fields */
   CACHE_FIELD *copy_end= field_descr+flag_fields;
   for ( ; copy < copy_end; copy++)
   {
+    sql_print_information("[%s:%d] copy flag field", __FILE__, __LINE__);
     memcpy(cp, copy->str, copy->length);
     cp+= copy->length;
   } 
@@ -1357,12 +1365,14 @@ uint JOIN_CACHE::write_record_data(uchar * link, bool *is_full)
         len= (uint) copy->str[0] + 1;
         memcpy(cp, copy->str, len);
         cp+= len;
+	sql_print_information("[%s:%d] copy field. len: %d, str: %s", __FILE__, __LINE__, len, (copy->str + 1));
         break;
       case CACHE_VARSTR2:
         /* Copy the significant part of the long varstring field */
         len= uint2korr(copy->str) + 2;
         memcpy(cp, copy->str, len);
         cp+= len;
+	sql_print_information("[%s:%d] copy field. len: %d, str: %s", __FILE__, __LINE__, len, (copy->str + 2));
         break;
       case CACHE_STRIPPED:
       {
@@ -1378,12 +1388,14 @@ uint JOIN_CACHE::write_record_data(uchar * link, bool *is_full)
         int2store(cp, len);
 	memcpy(cp+2, str, len);
 	cp+= len+2;
+	sql_print_information("[%s:%d] copy field. len: %d, str: %s", __FILE__, __LINE__, len, str);
         break;
       }
       default:      
         /* Copy the entire image of the field from the record buffer */
 	memcpy(cp, copy->str, copy->length);
 	cp+= copy->length;
+	sql_print_information("[%s:%d] copy field.", __FILE__, __LINE__);
       }
     }
   }
@@ -1468,11 +1480,16 @@ void JOIN_CACHE::reset_cache(bool for_writing)
 
 bool JOIN_CACHE::put_record_in_cache()
 {
+  sql_print_information("[%s:%d] enter JOIN_CACHE::put_record_in_cache", __FILE__, __LINE__);
   bool is_full;
   uchar *link= 0;
+
   if (prev_cache)
     link= prev_cache->get_curr_rec_link();
+
+  sql_print_information("[%s:%d] call write_record_data", __FILE__, __LINE__);
   write_record_data(link, &is_full);
+  sql_print_information("[%s:%d] call write_record_data. is_full: %d", __FILE__, __LINE__, is_full);
   return (is_full);
 }
   
@@ -1897,6 +1914,7 @@ void JOIN_CACHE::restore_last_record()
 
 enum_nested_loop_state JOIN_CACHE::join_records(bool skip_last)
 {
+  sql_print_information("[%s:%d] enter JOIN_CACHE::join_records. skip_last: %d", __FILE__, __LINE__, skip_last);
   enum_nested_loop_state rc= NESTED_LOOP_OK;
   DBUG_ENTER("JOIN_CACHE::join_records");
 
