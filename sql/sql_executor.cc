@@ -2867,7 +2867,8 @@ void QEP_TAB::set_pushed_table_access_method(void)
 static enum_nested_loop_state
 end_send(JOIN *join, QEP_TAB *qep_tab, bool end_of_records)
 {
-  sql_print_information("[%s:%d] enter end_send. qep_tab idx: ?, end_of_records: %d", __FILE__, __LINE__, end_of_records);
+  sql_print_information("[%s:%d] enter end_send. qep_tab: %p, end_of_records: %d", __FILE__, __LINE__, qep_tab, end_of_records);
+
   DBUG_ENTER("end_send");
   /*
     When all tables are const this function is called with jointab == NULL.
@@ -2883,6 +2884,7 @@ end_send(JOIN *join, QEP_TAB *qep_tab, bool end_of_records)
 
   if (!end_of_records)
   {
+    sql_print_information("[%s:%d] enter if ", __FILE__, __LINE__);
     int error;
 
     if (join->tables &&
@@ -2970,6 +2972,10 @@ end_send(JOIN *join, QEP_TAB *qep_tab, bool end_of_records)
       */
       DBUG_RETURN(NESTED_LOOP_CURSOR_LIMIT);
     }
+  }
+  else
+  {
+    sql_print_information("[%s:%d] enter else ", __FILE__, __LINE__);
   }
   DBUG_RETURN(NESTED_LOOP_OK);
 }

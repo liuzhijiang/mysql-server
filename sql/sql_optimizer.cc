@@ -9185,6 +9185,7 @@ make_cond_for_table_from_pred(Item *root_cond, Item *cond,
 
 static bool make_join_select(JOIN *join, Item *cond)
 {
+  sql_print_information("[%s:%d] enter make_join_select", __FILE__, __LINE__);
   THD *thd = join->thd;
   Opt_trace_context *const trace = &thd->opt_trace;
   DBUG_ENTER("make_join_select");
@@ -9273,6 +9274,8 @@ static bool make_join_select(JOIN *join, Item *cond)
 
       if (cond)
         tmp = make_cond_for_table(cond, used_tables, current_map, 0);
+
+      sql_print_information("[%s:%d] cond: %p, tmp: %p", __FILE__, __LINE__, cond, tmp);
       /* Add conditions added by add_not_null_conds(). */
       if (tab->condition() && and_conditions(&tmp, tab->condition()))
         DBUG_RETURN(true);
@@ -9306,6 +9309,7 @@ static bool make_join_select(JOIN *join, Item *cond)
           */
           if (!(tmp = add_found_match_trig_cond(join, first_inner, tmp, NO_PLAN_IDX)))
             DBUG_RETURN(true);
+	  sql_print_information("[%s:%d] call set_condition", __FILE__, __LINE__);
           tab->set_condition(tmp);
           /* Push condition to storage engine if this is enabled
              and the condition is not guarded */

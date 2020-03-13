@@ -1520,7 +1520,8 @@ bool JOIN_CACHE::put_record_in_cache()
 */
 
 bool JOIN_CACHE::get_record()
-{ 
+{
+  sql_print_information("[%s:%d] enter get_record", __FILE__, __LINE__);
   bool res;
   uchar *prev_rec_ptr= 0;
   if (with_length)
@@ -2089,6 +2090,7 @@ finish:
 
 enum_nested_loop_state JOIN_CACHE_BNL::join_matching_records(bool skip_last)
 {
+  sql_print_information("[%s:%d] enter JOIN_CACHE_BNL::join_matching_records", __FILE__, __LINE__);
   int error;
   enum_nested_loop_state rc= NESTED_LOOP_OK;
 
@@ -2148,14 +2150,16 @@ enum_nested_loop_state JOIN_CACHE_BNL::join_matching_records(bool skip_last)
 
         /* Read each record from the join buffer and look for matches */
         for (uint cnt= records - MY_TEST(skip_last) ; cnt; cnt--)
-        { 
+        {
           /* 
             If only the first match is needed and it has been already found for
             the next record read from the join buffer then the record is skipped.
           */
           if (!check_only_first_match || !skip_record_if_match())
           {
+	    sql_print_information("[%s:%d] call get_record", __FILE__, __LINE__);
             get_record();
+	    sql_print_information("[%s:%d] call generate_full_extensions", __FILE__, __LINE__);
             rc= generate_full_extensions(get_curr_rec());
             if (rc != NESTED_LOOP_OK)
               return rc;
@@ -2261,6 +2265,7 @@ bool JOIN_CACHE::set_match_flag_if_none(QEP_TAB *first_inner,
 
 enum_nested_loop_state JOIN_CACHE::generate_full_extensions(uchar *rec_ptr)
 {
+  sql_print_information("[%s:%d] enter JOIN_CACHE::generate_full_extensions", __FILE__, __LINE__);
   enum_nested_loop_state rc= NESTED_LOOP_OK;
   /*
     Check whether the extended partial join record meets
@@ -2268,11 +2273,13 @@ enum_nested_loop_state JOIN_CACHE::generate_full_extensions(uchar *rec_ptr)
   */
   if (check_match(rec_ptr))
   {
+    sql_print_information("[%s:%d] check_match succ", __FILE__, __LINE__);
     int res= 0;
     if (!qep_tab->check_weed_out_table ||
         !(res= do_sj_dups_weedout(join->thd, qep_tab->check_weed_out_table)))
     {
       set_curr_rec_link(rec_ptr);
+      sql_print_information("[%s:%d] call next_select", __FILE__, __LINE__);
       rc= (qep_tab->next_select)(join, qep_tab + 1, 0);
       if (rc != NESTED_LOOP_OK)
       {
@@ -2285,6 +2292,10 @@ enum_nested_loop_state JOIN_CACHE::generate_full_extensions(uchar *rec_ptr)
       rc= NESTED_LOOP_ERROR;
       return rc;
     }
+  }
+  else
+  {
+    sql_print_information("[%s:%d] check_match fail", __FILE__, __LINE__);
   }
   return rc;
 }
@@ -2315,17 +2326,20 @@ enum_nested_loop_state JOIN_CACHE::generate_full_extensions(uchar *rec_ptr)
 
 bool JOIN_CACHE::check_match(uchar *rec_ptr)
 {
+  sql_print_information("[%s:%d] enter JOIN_CACHE::check_match", __FILE__, __LINE__);
   bool skip_record;
   /* Check whether pushdown conditions are satisfied */
   if (qep_tab->skip_record(join->thd, &skip_record) || skip_record)
     return FALSE;
 
+  sql_print_information("[%s:%d]", __FILE__, __LINE__);
   if (! ((qep_tab->first_inner() != NO_PLAN_IDX &&
           QEP_AT(qep_tab, first_inner()).last_inner() == qep_tab->idx()) ||
          (qep_tab->last_sj_inner() == qep_tab->idx() &&
           qep_tab->get_sj_strategy() == SJ_OPT_FIRST_MATCH)) )
     return TRUE; // not the last inner table
 
+  sql_print_information("[%s:%d]", __FILE__, __LINE__);
   /* 
      This is the last inner table of an outer join,
      and maybe of other embedding outer joins, or
@@ -2338,8 +2352,10 @@ bool JOIN_CACHE::check_match(uchar *rec_ptr)
 
   QEP_TAB *first_inner= &join->qep_tab[f_i];
 
+  sql_print_information("[%s:%d]", __FILE__, __LINE__);
   for(;;)
   {
+    sql_print_information("[%s:%d]", __FILE__, __LINE__);
     set_match_flag_if_none(first_inner, rec_ptr);
     if (calc_check_only_first_match(first_inner) &&
         qep_tab->first_inner() == NO_PLAN_IDX)
@@ -2353,20 +2369,25 @@ bool JOIN_CACHE::check_match(uchar *rec_ptr)
       of a semi-join, but is not an inner table of an outer join
       such that 'not exists' optimization can  be applied to it, 
       the re-evaluation of the pushdown predicates is not needed.
-    */      
+    */
+    sql_print_information("[%s:%d]", __FILE__, __LINE__);
     for (QEP_TAB *tab= first_inner; tab <= qep_tab; tab++)
     {
       if (tab->skip_record(join->thd, &skip_record) || skip_record)
         return FALSE;
     }
+    sql_print_information("[%s:%d]", __FILE__, __LINE__);
     f_i= first_inner->first_upper();
     if (f_i == NO_PLAN_IDX)
       break;
+    sql_print_information("[%s:%d]", __FILE__, __LINE__);
     first_inner= &join->qep_tab[f_i];
     if (first_inner->last_inner() != qep_tab->idx())
       break;
+    sql_print_information("[%s:%d]", __FILE__, __LINE__);
   }
 
+  sql_print_information("[%s:%d]", __FILE__, __LINE__);
   return TRUE;
 } 
 
