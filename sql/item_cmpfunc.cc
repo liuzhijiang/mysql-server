@@ -1668,6 +1668,7 @@ int Arg_comparator::compare_json()
 
 int Arg_comparator::compare_string()
 {
+  sql_print_information("[%s:%d] enter Arg_comparator::compare_string", __FILE__, __LINE__);
   String *res1,*res2;
   if ((res1= (*a)->val_str(&value1)))
   {

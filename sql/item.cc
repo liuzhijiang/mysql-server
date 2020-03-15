@@ -22,7 +22,7 @@
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
 
 #include "item.h"
-
+#include "log.h"
 #include "mysql.h"           // IS_NUM
 #include "aggregate_check.h" // Distinct_check
 #include "auth_common.h"     // get_column_grant
@@ -5844,6 +5844,7 @@ Item_field::fix_outer_field(THD *thd, Field **from_field, Item **reference)
 
 bool Item_field::fix_fields(THD *thd, Item **reference)
 {
+  sql_print_information("[%s:%d] enter Item_field::fix_fields", __FILE__, __LINE__);
   DBUG_ASSERT(fixed == 0);
   Field *from_field= not_found_field;
   bool outer_fixed= false;
@@ -5854,6 +5855,7 @@ bool Item_field::fix_fields(THD *thd, Item **reference)
 
   if (!field)					// If field is not checked
   {
+    sql_print_information("[%s:%d] field is NULL", __FILE__, __LINE__);
     /*
       In case of view, find_field_in_tables() write pointer to view field
       expression to 'reference', i.e. it substitute that expression instead

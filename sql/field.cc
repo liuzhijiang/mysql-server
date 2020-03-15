@@ -31,7 +31,7 @@
 */
 
 #include "field.h"
-
+#include "log.h"
 #include "filesort.h"                    // change_double_for_sort
 #include "item_timefunc.h"               // Item_func_now_local
 #include "json_binary.h"                 // json_binary::serialize
@@ -7235,6 +7235,7 @@ longlong Field_string::val_int(void)
 String *Field_string::val_str(String *val_buffer MY_ATTRIBUTE((unused)),
 			      String *val_ptr)
 {
+  sql_print_information("[%s:%d] enter Field_string::val_str", __FILE__, __LINE__);
   ASSERT_COLUMN_MARKED_FOR_READ;
   /* See the comment for Field_long::store(long long) */
   DBUG_ASSERT(table->in_use == current_thd);
@@ -7246,7 +7247,10 @@ String *Field_string::val_str(String *val_buffer MY_ATTRIBUTE((unused)),
   else
     length= field_charset->cset->lengthsp(field_charset, (const char*) ptr,
                                           field_length);
+  
   val_ptr->set((const char*) ptr, length, field_charset);
+
+  sql_print_information("[%s:%d] ptr: %p, length: %lu, str: %s", __FILE__, __LINE__, ptr, length, val_ptr->c_ptr());
   return val_ptr;
 }
 

@@ -101,6 +101,7 @@ uint build_bitmap_for_nested_joins(List<TABLE_LIST> *join_list,
 */
 bool SELECT_LEX::prepare(THD *thd)
 {
+  sql_print_information("[%s:%d] enter SELECT_LEX::prepare", __FILE__, __LINE__);
   DBUG_ENTER("SELECT_LEX::prepare");
 
   // We may do subquery transformation, or Item substitution:
@@ -209,6 +210,7 @@ bool SELECT_LEX::prepare(THD *thd)
   thd->want_privilege= SELECT_ACL;
 
   // Set up join conditions and WHERE clause
+  sql_print_information("[%s:%d] call setup_conds", __FILE__, __LINE__);
   if (setup_conds(thd))
     DBUG_RETURN(true);
 
@@ -1165,6 +1167,7 @@ bool SELECT_LEX::setup_wild(THD *thd)
 */
 bool SELECT_LEX::setup_conds(THD *thd)
 {
+  sql_print_information("[%s:%d] enter SELECT_LEX::setup_conds", __FILE__, __LINE__);
   DBUG_ENTER("SELECT_LEX::setup_conds");
 
   /*
@@ -1186,10 +1189,29 @@ bool SELECT_LEX::setup_conds(THD *thd)
   {
     resolve_place= st_select_lex::RESOLVE_CONDITION;
     thd->where="where clause";
+    sql_print_information("[%s:%d] want to call fix_fields", __FILE__, __LINE__);
+    sql_print_information("[%s:%d] m_where_cond type: %d", __FILE__, __LINE__, m_where_cond->type());
+    if (m_where_cond->type() == Item::FUNC_ITEM)
+    {
+      Item_func *func_item= (Item_func *)m_where_cond;
+      sql_print_information("[%s:%d] m_where_cond functype: %d", __FILE__, __LINE__, func_item->functype());
+      if (func_item->functype() == Item_func::EQ_FUNC)
+      {
+	Item_func_eq *eq_func_item = (Item_func_eq *)func_item;
+	sql_print_information("[%s:%d] eq func item: %p", __FILE__, __LINE__, eq_func_item);
+      }
+    }
     if ((!m_where_cond->fixed &&
          m_where_cond->fix_fields(thd, &m_where_cond)) ||
 	m_where_cond->check_cols(1))
-      DBUG_RETURN(true);
+    {
+      sql_print_information("[%s:%d] call fix_fields error", __FILE__, __LINE__);
+	DBUG_RETURN(true);
+    }
+    else
+    {
+      sql_print_information("[%s:%d] call fix_fields succ", __FILE__, __LINE__);
+    }
     resolve_place= st_select_lex::RESOLVE_NONE;
   }
 

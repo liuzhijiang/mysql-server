@@ -463,6 +463,10 @@ public:
   inline bool skip_record(THD *thd, bool *skip_record_arg)
   {
     sql_print_information("[%s:%d] enter skip_record", __FILE__, __LINE__);
+    if (condition())
+    {
+      sql_print_information("[%s:%d] condition type: %d, ptr: %p", __FILE__, __LINE__, condition()->type(), condition());
+    }
     *skip_record_arg= condition() ? condition()->val_int() == FALSE : FALSE;
     sql_print_information("[%s:%d] skip_record_arg: %d", __FILE__, __LINE__, *skip_record_arg);
     return thd->is_error();

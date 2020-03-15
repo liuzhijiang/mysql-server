@@ -217,6 +217,7 @@ bool Item_func::itemize(Parse_context *pc, Item **res)
 bool
 Item_func::fix_fields(THD *thd, Item **ref)
 {
+  sql_print_information("[%s:%d] enter Item_func::fix_fields", __FILE__, __LINE__);
   DBUG_ASSERT(fixed == 0 || basic_const_item());
 
   Item **arg,**arg_end;
@@ -246,6 +247,7 @@ Item_func::fix_fields(THD *thd, Item **ref)
   {						// Print purify happy
     for (arg=args, arg_end=args+arg_count; arg != arg_end ; arg++)
     {
+      sql_print_information("[%s:%d] call fix_func_arg", __FILE__, __LINE__);
       if (fix_func_arg(thd, arg))
         return true;
     }
@@ -260,6 +262,13 @@ Item_func::fix_fields(THD *thd, Item **ref)
 
 bool Item_func::fix_func_arg(THD *thd, Item **arg)
 {
+  sql_print_information("[%s:%d] enter Item_func::fix_func_arg", __FILE__, __LINE__);
+  sql_print_information("[%s:%d] arg type: %d", __FILE__, __LINE__, (*arg)->type());
+  if ((*arg)->type() == Item::FIELD_ITEM)
+  {
+    Item_field *field_item = (Item_field*)(*arg);
+    sql_print_information("[%s:%d] item field: %p", __FILE__, __LINE__, field_item);
+  }
   if ((!(*arg)->fixed && (*arg)->fix_fields(thd, arg)))
     return true;                                /* purecov: inspected */
   Item *item= *arg;
