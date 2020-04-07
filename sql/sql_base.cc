@@ -22,6 +22,7 @@
 
 /* Basic functions needed by many modules */
 
+#include "log.h"
 #include "sql_base.h"
 #include "my_global.h"                          /* NO_EMBEDDED_ACCESS_CHECKS */
 #include "debug_sync.h"
@@ -9343,7 +9344,7 @@ bool fill_record(THD *thd, TABLE *table, List<Item> &fields,
 
     Field *const rfield= field->field;
     Item *const value= v++;
-
+    sql_print_information("[%s:%d] field type: %d", __FILE__, __LINE__, rfield->type());
     /* If bitmap over wanted fields are set, skip non marked fields. */
     if (bitmap && !bitmap_is_set(bitmap, rfield->field_index))
       continue;
@@ -9670,6 +9671,7 @@ bool fill_record(THD *thd, TABLE *table, Field **ptr, List<Item> &values,
     Item *const value= v++;
     DBUG_ASSERT(field->table == table);
 
+    sql_print_information("[%s:%d] field type: %d, value type: %d", __FILE__, __LINE__, field->type(), value->type());
     /* If bitmap over wanted fields are set, skip non marked fields. */
     if (bitmap && !bitmap_is_set(bitmap, field->field_index))
       continue;
@@ -9739,6 +9741,7 @@ fill_record_n_invoke_before_triggers(THD *thd, Field **ptr,
                                      enum enum_trigger_event_type event,
                                      int num_fields)
 {
+  sql_print_information("[%s:%d]", __FILE__, __LINE__);
   bool rc;
 
   if (table->triggers)

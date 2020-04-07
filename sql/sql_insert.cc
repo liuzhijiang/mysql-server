@@ -25,7 +25,7 @@
 /* Insert of records */
 
 #include "sql_insert.h"
-
+#include "log.h"
 #include "auth_common.h"              // check_grant_all_columns
 #include "debug_sync.h"               // DEBUG_SYNC
 #include "item.h"                     // Item
@@ -696,8 +696,49 @@ bool Sql_cmd_insert::mysql_insert(THD *thd,TABLE_LIST *table_list)
 
   while ((values= its++))
   {
+    sql_print_information("[%s:%d] record: %p", __FILE__, __LINE__, insert_table->record[0]);
+    for (uint i = 0; i < 32; i ++)
+    {
+      sql_print_information("[%s:%d] record: [%p][%2d]%2X", __FILE__, __LINE__, &(insert_table->record[0][i]), i, insert_table->record[0][i]);
+    }
+    Field**field = insert_table->visible_field_ptr();
+    uint field_count = insert_table->visible_field_count();
+    for (uint idx = 0; idx < field_count; idx++, field++)
+    {
+      sql_print_information("[%s:%d] ptr: %p, length: %d", __FILE__, __LINE__, (*field)->ptr, (*field)->field_length);
+      for (uint i = 0; i < (*field)->field_length && i < 16; i++)
+      {
+	sql_print_information("[%s:%d] [%p][%2d]%2X", __FILE__, __LINE__, &((*field)->ptr[i]), i, (*field)->ptr[i]);
+      }
+    }
+    List_iterator_fast<Item> v(*values);
+    Item *value;
+    while ((value = v++))
+    {
+      switch (value->type())
+      {
+      case Item::STRING_ITEM:
+      {
+	sql_print_information("[%s:%d] value: %s", __FILE__, __LINE__, ((Item_string*)value)->val_str(NULL)->c_ptr());
+	break;
+      }
+      case Item::INT_ITEM:
+      {
+	sql_print_information("[%s:%d] value: %lld", __FILE__, __LINE__, ((Item_int*)value)->val_int());
+	break;
+      }
+      case Item::DECIMAL_ITEM:
+      {
+	sql_print_information("[%s:%d] value: %lld", __FILE__, __LINE__, ((Item_decimal*)value)->val_int());
+	break;
+      }
+      default:
+	break;
+      }
+    }
     if (insert_field_list.elements || !value_count)
     {
+      sql_print_information("[%s:%d]", __FILE__, __LINE__);
       restore_record(insert_table, s->default_values);  // Get empty record
 
       /*
@@ -706,6 +747,7 @@ bool Sql_cmd_insert::mysql_insert(THD *thd,TABLE_LIST *table_list)
       */
       if (validate_default_values_of_unset_fields(thd, insert_table))
       {
+	sql_print_information("[%s:%d]", __FILE__, __LINE__);
         error= 1;
         break;
       }
@@ -714,6 +756,7 @@ bool Sql_cmd_insert::mysql_insert(THD *thd,TABLE_LIST *table_list)
                                                TRG_EVENT_INSERT,
                                                insert_table->s->fields))
       {
+	sql_print_information("[%s:%d]", __FILE__, __LINE__);
         DBUG_ASSERT(thd->is_error());
         /*
           TODO: Convert warnings to errors if values_list.elements == 1
@@ -728,6 +771,7 @@ bool Sql_cmd_insert::mysql_insert(THD *thd,TABLE_LIST *table_list)
                                                   table_list);
       if (res)
       {
+	sql_print_information("[%s:%d]", __FILE__, __LINE__);
         DBUG_ASSERT(thd->is_error());
         error= 1;
         break;
@@ -736,9 +780,13 @@ bool Sql_cmd_insert::mysql_insert(THD *thd,TABLE_LIST *table_list)
     else
     {
       if (lex->used_tables)               // Column used in values()
+      {
+	sql_print_information("[%s:%d]", __FILE__, __LINE__);
         restore_record(insert_table, s->default_values); // Get empty record
+      }
       else
       {
+	sql_print_information("[%s:%d]", __FILE__, __LINE__);
         TABLE_SHARE *share= insert_table->s;
 
         /*
@@ -751,6 +799,7 @@ bool Sql_cmd_insert::mysql_insert(THD *thd,TABLE_LIST *table_list)
         /* Fix undefined null_bits. */
         if (share->null_bytes > 1 && share->last_null_bit_pos)
         {
+	  sql_print_information("[%s:%d]", __FILE__, __LINE__);
           insert_table->record[0][share->null_bytes - 1]=
             share->default_values[share->null_bytes - 1];
         }
@@ -760,6 +809,7 @@ bool Sql_cmd_insert::mysql_insert(THD *thd,TABLE_LIST *table_list)
                                                TRG_EVENT_INSERT,
                                                insert_table->s->fields))
       {
+	sql_print_information("[%s:%d]", __FILE__, __LINE__);
         DBUG_ASSERT(thd->is_error());
         error= 1;
         break;
@@ -770,6 +820,7 @@ bool Sql_cmd_insert::mysql_insert(THD *thd,TABLE_LIST *table_list)
       continue;
     else if (res == VIEW_CHECK_ERROR)
     {
+      sql_print_information("[%s:%d]", __FILE__, __LINE__);
       error= 1;
       break;
     }
@@ -1511,6 +1562,11 @@ static int last_uniq_key(TABLE *table,uint keynr)
 
 int write_record(THD *thd, TABLE *table, COPY_INFO *info, COPY_INFO *update)
 {
+  sql_print_information("[%s:%d] record: %p", __FILE__, __LINE__, table->record[0]);
+  for (uint i = 0; i < 32; i ++)
+  {
+    sql_print_information("[%s:%d] record: [%p][%2d]%2X", __FILE__, __LINE__, &(table->record[0][i]), i, table->record[0][i]);
+  }
   int error, trg_error= 0;
   char *key=0;
   MY_BITMAP *save_read_set, *save_write_set;
@@ -1531,7 +1587,7 @@ int write_record(THD *thd, TABLE *table, COPY_INFO *info, COPY_INFO *update)
   info->set_function_defaults(table);
 
   const enum_duplicates duplicate_handling= info->get_duplicate_handling();
-
+  
   if (duplicate_handling == DUP_REPLACE || duplicate_handling == DUP_UPDATE)
   {
     DBUG_ASSERT(duplicate_handling != DUP_UPDATE || update != NULL);
