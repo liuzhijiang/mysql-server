@@ -32,6 +32,7 @@ Data dictionary system
 Created 1/8/1996 Heikki Tuuri
 ***********************************************************************/
 
+#include "log.h"
 #include "ha_prototypes.h"
 #include <mysqld.h>
 #include <strfunc.h>
@@ -891,7 +892,7 @@ dict_table_autoinc_read(
 	const dict_table_t*	table)	/*!< in: table */
 {
 	ut_ad(dict_table_autoinc_own(table));
-
+	sql_print_information("[%s:%d] table->autoinc: %lu", __FILE__, __LINE__, table->autoinc);
 	return(table->autoinc);
 }
 
@@ -907,6 +908,7 @@ dict_table_autoinc_update_if_greater(
 {
 	ut_ad(dict_table_autoinc_own(table));
 
+	sql_print_information("[%s:%d] table->autoinc: %ld, value: %ld", __FILE__, __LINE__, table->autoinc, value);
 	if (value > table->autoinc) {
 
 		table->autoinc = value;

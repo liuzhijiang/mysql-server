@@ -1587,9 +1587,11 @@ int write_record(THD *thd, TABLE *table, COPY_INFO *info, COPY_INFO *update)
   info->set_function_defaults(table);
 
   const enum_duplicates duplicate_handling= info->get_duplicate_handling();
-  
+
+  sql_print_information("[%s:%d] (duplicate_handling == DUP_REPLACE || duplicate_handling == DUP_UPDATE): %d", __FILE__, __LINE__, (duplicate_handling == DUP_REPLACE || duplicate_handling == DUP_UPDATE));
   if (duplicate_handling == DUP_REPLACE || duplicate_handling == DUP_UPDATE)
   {
+    sql_print_information("[%s:%d]", __FILE__, __LINE__);
     DBUG_ASSERT(duplicate_handling != DUP_UPDATE || update != NULL);
     while ((error=table->file->ha_write_row(table->record[0])))
     {
@@ -1944,6 +1946,7 @@ int write_record(THD *thd, TABLE *table, COPY_INFO *info, COPY_INFO *update)
   }
   else if ((error=table->file->ha_write_row(table->record[0])))
   {
+    sql_print_information("[%s:%d]", __FILE__, __LINE__);
     DEBUG_SYNC(thd, "write_row_noreplace");
     info->last_errno= error;
     myf error_flags= MYF(0);
@@ -1958,6 +1961,10 @@ int write_record(THD *thd, TABLE *table, COPY_INFO *info, COPY_INFO *update)
       goto before_trg_err;
     table->file->restore_auto_increment(prev_insert_id);
     goto ok_or_after_trg_err;
+  }
+  else
+  {
+      sql_print_information("[%s:%d]", __FILE__, __LINE__);
   }
 
 after_trg_n_copied_inc:

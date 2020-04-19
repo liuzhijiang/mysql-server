@@ -7666,7 +7666,7 @@ no_commit:
 			the upper limit of the interval, then we try and
 			update the table upper limit. Note: last_value
 			will be 0 if get_auto_increment() was not called. */
-
+		  sql_print_information("[%s:%d] auto_inc: %lld, m_prebuilt->autoinc_last_value: %lld", __FILE__, __LINE__, auto_inc, m_prebuilt->autoinc_last_value);
 			if (auto_inc >= m_prebuilt->autoinc_last_value) {
 set_max_autoinc:
 				/* This should filter out the negative
