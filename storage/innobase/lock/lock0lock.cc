@@ -32,7 +32,7 @@ Created 5/7/1996 Heikki Tuuri
 *******************************************************/
 
 #define LOCK_MODULE_IMPLEMENTATION
-
+#include "log.h"
 #include <mysql/service_thd_engine_lock.h>
 #include "ha_prototypes.h"
 
@@ -822,11 +822,17 @@ lock_rec_has_to_wait(
 {
 	ut_ad(trx && lock2);
 	ut_ad(lock_get_type_low(lock2) == LOCK_REC);
+	sql_print_information("[%s:%d] enter lock_rec_has_to_wait", __FILE__, __LINE__);
+	sql_print_information("[%s:%d] in lock_rec_has_to_wait trx: %p, lock2->trx: %p, compatible: %lu", __FILE__, __LINE__,
+			      trx, lock2->trx, lock_mode_compatible(static_cast<lock_mode>(LOCK_MODE_MASK & type_mode),lock_get_mode(lock2)));
 
+	sql_print_information("[%s:%d] in lock_rec_has_to_wait lock_mode: %d, lock_mode: %d", __FILE__, __LINE__,
+			      static_cast<lock_mode>(LOCK_MODE_MASK & type_mode),lock_get_mode(lock2));
 	if (trx != lock2->trx
 	    && !lock_mode_compatible(static_cast<lock_mode>(
 			             LOCK_MODE_MASK & type_mode),
 				     lock_get_mode(lock2))) {
+	        sql_print_information("[%s:%d] in lock_rec_has_to_wait", __FILE__, __LINE__);
 
 		/* We have somewhat complex rules when gap type record locks
 		cause waits */
@@ -838,7 +844,7 @@ lock_rec_has_to_wait(
 			do not need to wait for anything. This is because
 			different users can have conflicting lock types
 			on gaps. */
-
+		  sql_print_information("[%s:%d] in lock_rec_has_to_wait return FALSE", __FILE__, __LINE__);
 			return(FALSE);
 		}
 
@@ -847,7 +853,7 @@ lock_rec_has_to_wait(
 
 			/* Record lock (LOCK_ORDINARY or LOCK_REC_NOT_GAP
 			does not need to wait for a gap type lock */
-
+		  sql_print_information("[%s:%d] in lock_rec_has_to_wait return FALSE", __FILE__, __LINE__);
 			return(FALSE);
 		}
 
@@ -856,7 +862,7 @@ lock_rec_has_to_wait(
 
 			/* Lock on gap does not need to wait for
 			a LOCK_REC_NOT_GAP type lock */
-
+		  sql_print_information("[%s:%d] in lock_rec_has_to_wait return FALSE", __FILE__, __LINE__);
 			return(FALSE);
 		}
 
@@ -872,13 +878,13 @@ lock_rec_has_to_wait(
 
 			Also, insert intention locks do not disturb each
 			other. */
-
+		  sql_print_information("[%s:%d] in lock_rec_has_to_wait return FALSE", __FILE__, __LINE__);
 			return(FALSE);
 		}
-
+		sql_print_information("[%s:%d] in lock_rec_has_to_wait return TRUE", __FILE__, __LINE__);
 		return(TRUE);
 	}
-
+	sql_print_information("[%s:%d] in lock_rec_has_to_wait return FALSE", __FILE__, __LINE__);
 	return(FALSE);
 }
 
@@ -1115,7 +1121,8 @@ lock_rec_has_expl(
 	const trx_t*		trx)	/*!< in: transaction */
 {
 	lock_t*	lock;
-
+	sql_print_information("[%s:%d] enter lock_rec_has_expl", __FILE__, __LINE__);
+	
 	ut_ad(lock_mutex_own());
 	ut_ad((precise_mode & LOCK_MODE_MASK) == LOCK_S
 	      || (precise_mode & LOCK_MODE_MASK) == LOCK_X);
@@ -1124,7 +1131,18 @@ lock_rec_has_expl(
 	for (lock = lock_rec_get_first(lock_sys->rec_hash, block, heap_no);
 	     lock != NULL;
 	     lock = lock_rec_get_next(heap_no, lock)) {
-
+	  sql_print_information("[%s:%d] lock->trx:%p, trx:%p, lock_rec_get_insert_intention(lock):%lu, lock_mode_stronger_or_eq(lock_get_mode(lock), static_cast<lock_mode>(precise_mode & LOCK_MODE_MASK)):%lu, lock_get_wait(lock):%ld, lock_rec_get_rec_not_gap(lock):%ld, precise_mode:%ld, LOCK_REC_NOT_GAP:%d, heap_no:%ld, PAGE_HEAP_NO_SUPREMUM:%d, lock_rec_get_gap(lock):%ld, precise_mode:%ld, LOCK_GAP:%d, heap_no:%lu, PAGE_HEAP_NO_SUPREMUM:%d",
+				__FILE__, __LINE__,
+				lock->trx, trx,
+				lock_rec_get_insert_intention(lock),
+				lock_mode_stronger_or_eq(lock_get_mode(lock), static_cast<lock_mode>(precise_mode & LOCK_MODE_MASK)),
+				lock_get_wait(lock),
+				lock_rec_get_rec_not_gap(lock),
+				precise_mode, LOCK_REC_NOT_GAP,
+				heap_no,PAGE_HEAP_NO_SUPREMUM,
+				lock_rec_get_gap(lock),
+				precise_mode,LOCK_GAP,
+				heap_no,PAGE_HEAP_NO_SUPREMUM);
 		if (lock->trx == trx
 		    && !lock_rec_get_insert_intention(lock)
 		    && lock_mode_stronger_or_eq(
@@ -1138,11 +1156,11 @@ lock_rec_has_expl(
 		    && (!lock_rec_get_gap(lock)
 			|| (precise_mode & LOCK_GAP)
 			|| heap_no == PAGE_HEAP_NO_SUPREMUM)) {
-
+		  sql_print_information("[%s:%d] find expl lock: %p", __FILE__, __LINE__, lock);
 			return(lock);
 		}
 	}
-
+	sql_print_information("[%s:%d] not find expl lock", __FILE__, __LINE__);
 	return(NULL);
 }
 
@@ -1212,18 +1230,22 @@ lock_rec_other_has_conflicting(
 	const lock_t*		lock;
 
 	ut_ad(lock_mutex_own());
-
+	sql_print_information("[%s:%d] enter lock_rec_other_has_conflicting", __FILE__, __LINE__);
 	bool	is_supremum = (heap_no == PAGE_HEAP_NO_SUPREMUM);
 
 	for (lock = lock_rec_get_first(lock_sys->rec_hash, block, heap_no);
 	     lock != NULL;
 	     lock = lock_rec_get_next_const(heap_no, lock)) {
-
+	  sql_print_information("[%s:%d] in lock_rec_other_has_conflicting process lock: %p", __FILE__, __LINE__, lock);
 		if (lock_rec_has_to_wait(trx, mode, lock, is_supremum)) {
-			return(lock);
+		  sql_print_information("[%s:%d] in lock_rec_other_has_conflicting lock_rec_has_to_wait: has_to_wait: TRUE", __FILE__, __LINE__);
+		  return(lock);
+		}else{
+		  sql_print_information("[%s:%d] in lock_rec_other_has_conflicting lock_rec_has_to_wait: has_to_wait: FALSE", __FILE__, __LINE__);
 		}
 	}
 
+	sql_print_information("[%s:%d] in lock_rec_other_has_conflicting lock_rec_has_to_wait lock: %p", __FILE__, __LINE__, (int *)NULL);
 	return(NULL);
 }
 
@@ -1486,7 +1508,7 @@ RecLock::lock_alloc(
 	rec_lock.page_no = rec_id.m_page_no;
 
 	/* Set the bit corresponding to rec */
-
+	sql_print_information("[%s:%d] call lock_rec_set_nth_bit heap_no: %u", __FILE__, __LINE__, rec_id.m_heap_no);
 	lock_rec_set_nth_bit(lock, rec_id.m_heap_no);
 
 	MONITOR_INC(MONITOR_NUM_RECLOCK);
@@ -1537,11 +1559,12 @@ RecLock::create(
 {
 	ut_ad(lock_mutex_own());
 	ut_ad(owns_trx_mutex == trx_mutex_own(trx));
-
+	sql_print_information("[%s:%d] enter RecLock::create", __FILE__, __LINE__);
 	/* Create the explicit lock instance and initialise it. */
-
+	
+	sql_print_information("[%s:%d] call lock_alloc, m_mode: %lX", __FILE__, __LINE__, m_mode);
 	lock_t*	lock = lock_alloc(trx, m_index, m_mode, m_rec_id, m_size);
-
+	sql_print_information("[%s:%d] call lock_alloc lock: %p", __FILE__, __LINE__, lock);
 	if (prdt != NULL && (m_mode & LOCK_PREDICATE)) {
 
 		lock_prdt_set_prdt(lock, prdt);
@@ -1714,7 +1737,7 @@ RecLock::add_to_waitq(const lock_t* wait_for, const lock_prdt_t* prdt)
 	ut_ad(lock_mutex_own());
 	ut_ad(m_trx == thr_get_trx(m_thr));
 	ut_ad(trx_mutex_own(m_trx));
-
+	sql_print_information("[%s:%d] enter add_to_waitq", __FILE__, __LINE__);
 	DEBUG_SYNC_C("rec_lock_add_to_waitq");
 
 	m_mode |= LOCK_WAIT;
@@ -1725,6 +1748,7 @@ RecLock::add_to_waitq(const lock_t* wait_for, const lock_prdt_t* prdt)
 
 	bool	high_priority = trx_is_high_priority(m_trx);
 
+	sql_print_information("[%s:%d] call create", __FILE__, __LINE__);
 	/* Don't queue the lock to hash table, if high priority transaction. */
 	lock_t*	lock = create(m_trx, true, !high_priority, prdt);
 
@@ -1796,6 +1820,7 @@ lock_rec_add_to_queue(
 	}
 #endif /* UNIV_DEBUG */
 
+	sql_print_information("[%s:%d] enter lock_rec_add_to_queue", __FILE__, __LINE__);
 	type_mode |= LOCK_REC;
 
 	/* If rec is the supremum record, then we can reset the gap bit, as
@@ -1817,7 +1842,7 @@ lock_rec_add_to_queue(
 	hash_table_t*	hash = lock_hash_get(type_mode);
 
 	/* Look for a waiting lock request on the same record or on a gap */
-
+	
 	for (first_lock = lock = lock_rec_get_first_on_page(hash, block);
 	     lock != NULL;
 	     lock = lock_rec_get_next_on_page(lock)) {
@@ -1834,20 +1859,20 @@ lock_rec_add_to_queue(
 		/* Look for a similar record lock on the same page:
 		if one is found and there are no waiting lock requests,
 		we can just set the bit */
-
+	  sql_print_information("[%s:%d] call lock_rec_find_similar_on_page", __FILE__, __LINE__);
 		lock = lock_rec_find_similar_on_page(
 			type_mode, heap_no, first_lock, trx);
-
+		sql_print_information("[%s:%d] call lock_rec_find_similar_on_page, lock: %p", __FILE__, __LINE__, lock);
 		if (lock != NULL) {
-
+		  sql_print_information("[%s:%d] call lock_rec_set_nth_bit heap_no: %lu", __FILE__, __LINE__, heap_no);
 			lock_rec_set_nth_bit(lock, heap_no);
 
 			return;
 		}
 	}
-
+	
 	RecLock		rec_lock(index, block, heap_no, type_mode);
-
+	sql_print_information("[%s:%d] call RecLock::create", __FILE__, __LINE__);
 	rec_lock.create(trx, caller_owns_trx_mutex, true);
 }
 
@@ -1891,7 +1916,7 @@ lock_rec_lock_fast(
 	ut_ad(dict_index_is_clust(index) || !dict_index_is_online_ddl(index));
 
 	DBUG_EXECUTE_IF("innodb_report_deadlock", return(LOCK_REC_FAIL););
-
+	sql_print_information("[%s:%d] enter lock_rec_lock_fast", __FILE__, __LINE__);
 	lock_t*	lock = lock_rec_get_first_on_page(lock_sys->rec_hash, block);
 
 	trx_t*	trx = thr_get_trx(thr);
@@ -1922,6 +1947,7 @@ lock_rec_lock_fast(
 			then we do not set a new lock bit, otherwise we do
 			set */
 			if (!lock_rec_get_nth_bit(lock, heap_no)) {
+			  sql_print_information("[%s:%d] call lock_rec_set_nth_bit heap_no: %lu", __FILE__, __LINE__, heap_no);
 				lock_rec_set_nth_bit(lock, heap_no);
 				status = LOCK_REC_SUCCESS_CREATED;
 			}
@@ -1971,12 +1997,13 @@ lock_rec_lock_slow(
 	ut_ad(dict_index_is_clust(index) || !dict_index_is_online_ddl(index));
 
 	DBUG_EXECUTE_IF("innodb_report_deadlock", return(DB_DEADLOCK););
-
+	sql_print_information("[%s:%d] enter lock_rec_lock_slow", __FILE__, __LINE__);
 	dberr_t	err;
 	trx_t*	trx = thr_get_trx(thr);
 
 	trx_mutex_enter(trx);
 
+	
 	if (lock_rec_has_expl(mode, block, heap_no, trx)) {
 
 		/* The trx already has a strong enough lock on rec: do
@@ -1985,10 +2012,10 @@ lock_rec_lock_slow(
 		err = DB_SUCCESS;
 
 	} else {
-
+	  sql_print_information("[%s:%d] call lock_rec_other_has_conflicting", __FILE__, __LINE__);
 		const lock_t* wait_for = lock_rec_other_has_conflicting(
 			mode, block, heap_no, trx);
-
+		sql_print_information("[%s:%d] call lock_rec_other_has_conflicting, wait_for: %p", __FILE__, __LINE__, wait_for);
 		if (wait_for != NULL) {
 
 			/* If another transaction has a non-gap conflicting
@@ -1997,7 +2024,7 @@ lock_rec_lock_slow(
 			record, we may have to wait. */
 
 			RecLock	rec_lock(thr, index, block, heap_no, mode);
-
+			sql_print_information("[%s:%d] call add_to_wait_q", __FILE__, __LINE__);
 			err = rec_lock.add_to_waitq(wait_for);
 
 		} else if (!impl) {
@@ -2057,7 +2084,7 @@ lock_rec_lock(
 	      || mode - (LOCK_MODE_MASK & mode) == LOCK_REC_NOT_GAP
 	      || mode - (LOCK_MODE_MASK & mode) == 0);
 	ut_ad(dict_index_is_clust(index) || !dict_index_is_online_ddl(index));
-
+	sql_print_information("[%s:%d] enter lock_rec_lock", __FILE__, __LINE__);
 	/* We try a simplified and faster subroutine for the most
 	common cases */
 	switch (lock_rec_lock_fast(impl, mode, block, heap_no, index, thr)) {
@@ -2131,7 +2158,7 @@ lock_grant(
 	lock_t*	lock)	/*!< in/out: waiting lock request */
 {
 	ut_ad(lock_mutex_own());
-
+	sql_print_information("[%s:%d] enter lock_grant", __FILE__, __LINE__);
 	lock_reset_lock_and_trx_wait(lock);
 
 	trx_mutex_enter(lock->trx);
@@ -2410,7 +2437,7 @@ lock_rec_cancel(
 	lock_t*	lock)	/*!< in: waiting record lock request */
 {
 	que_thr_t*	thr;
-
+	sql_print_information("[%s:%d] enter lock_rec_cancel", __FILE__, __LINE__);
 	ut_ad(lock_mutex_own());
 	ut_ad(lock_get_type_low(lock) == LOCK_REC);
 
@@ -2442,7 +2469,7 @@ void
 lock_rec_grant(lock_t* in_lock)
 {
 	lock_t*		lock;
-
+	sql_print_information("[%s:%d] enter lock_rec_grant", __FILE__, __LINE__);
 	ulint		space = in_lock->space();
 	ulint		page_no = in_lock->page_number();
 	hash_table_t*	lock_hash = in_lock->hash_table();
@@ -2454,7 +2481,7 @@ lock_rec_grant(lock_t* in_lock)
 	for (lock = lock_rec_get_first_on_page_addr(lock_hash, space, page_no);
 	     lock != NULL;
 	     lock = lock_rec_get_next_on_page(lock)) {
-
+	        sql_print_information("[%s:%d] lock: %p, wait: %p", __FILE__, __LINE__, lock, lock_rec_has_to_wait_in_queue(lock));
 		if (lock_get_wait(lock)
 		    && !lock_rec_has_to_wait_in_queue(lock)) {
 
@@ -2483,7 +2510,7 @@ lock_rec_dequeue_from_page(
 	ulint		page_no;
 	trx_lock_t*	trx_lock;
 	hash_table_t*	lock_hash;
-
+	sql_print_information("[%s:%d] enter lock_rec_dequeue_from_page", __FILE__, __LINE__);
 	ut_ad(lock_mutex_own());
 	ut_ad(lock_get_type_low(in_lock) == LOCK_REC);
 	/* We may or may not be holding in_lock->trx->mutex here. */
@@ -3830,7 +3857,7 @@ lock_table_remove_low(
 {
 	trx_t*		trx;
 	dict_table_t*	table;
-
+	sql_print_information("[%s:%d] enter lock_table_remove_low", __FILE__, __LINE__);
 	ut_ad(lock_mutex_own());
 
 	trx = lock->trx;
@@ -4145,7 +4172,7 @@ lock_table_dequeue(
 {
 	ut_ad(lock_mutex_own());
 	ut_a(lock_get_type_low(in_lock) == LOCK_TABLE);
-
+	sql_print_information("[%s:%d] enter lock_table_dequeue", __FILE__, __LINE__);
 	lock_t*	lock = UT_LIST_GET_NEXT(un_member.tab_lock.locks, in_lock);
 
 	lock_table_remove_low(in_lock);
@@ -4265,7 +4292,7 @@ lock_rec_unlock(
 	ulint		heap_no;
 	const char*	stmt;
 	size_t		stmt_len;
-
+	sql_print_information("[%s:%d] enter lock_rec_unlock", __FILE__, __LINE__);
 	ut_ad(trx);
 	ut_ad(rec);
 	ut_ad(block->frame == page_align(rec));
@@ -4390,7 +4417,7 @@ lock_trx_release_read_locks(
 	lock_t*		lock;
 	lock_t*		next_lock;
 	ulint		count = 0;
-
+	sql_print_information("[%s:%d] enter lock_trx_release_read_locks", __FILE__, __LINE__);
 	/* Avoid taking lock_sys if trx didn't acquire any lock */
 	if (UT_LIST_GET_LEN(trx->lock.trx_locks) == 0) {
 
@@ -4474,7 +4501,7 @@ lock_release(
 	lock_t*		lock;
 	ulint		count = 0;
 	trx_id_t	max_trx_id = trx_sys_get_max_trx_id();
-
+	sql_print_information("[%s:%d] enter lock_release", __FILE__, __LINE__);
 	ut_ad(lock_mutex_own());
 	ut_ad(!trx_mutex_own(trx));
 	ut_ad(!trx->is_dd_trx);
@@ -5910,7 +5937,7 @@ lock_rec_insert_check_and_lock(
 	      || dict_index_is_clust(index)
 	      || (flags & BTR_CREATE_FLAG));
 	ut_ad(mtr->is_named_space(index->space));
-
+	sql_print_information("[%s:%d] enter lock_rec_insert_check_and_lock", __FILE__, __LINE__);
 	if (flags & BTR_NO_LOCKING_FLAG) {
 
 		return(DB_SUCCESS);
@@ -5925,6 +5952,7 @@ lock_rec_insert_check_and_lock(
 	const rec_t*	next_rec = page_rec_get_next_const(rec);
 	ulint		heap_no = page_rec_get_heap_no(next_rec);
 
+	sql_print_information("[%s:%d] in lock_rec_insert_check_and_lock rec heap_no: %lu, next_rec heap_no: %lu", __FILE__, __LINE__, page_rec_get_heap_no(rec), page_rec_get_heap_no(next_rec));
 	lock_mutex_enter();
 	/* Because this code is invoked for a running transaction by
 	the thread that is serving the transaction, it is not necessary
@@ -5936,7 +5964,7 @@ lock_rec_insert_check_and_lock(
 	ut_ad(lock_table_has(trx, index->table, LOCK_IX));
 
 	lock = lock_rec_get_first(lock_sys->rec_hash, block, heap_no);
-
+	sql_print_information("[%s:%d] in lock_rec_insert_check_and_lock, lock_rec_get_first: %p", __FILE__, __LINE__, lock);
 	if (lock == NULL) {
 		/* We optimize CPU time usage in the simplest case */
 
@@ -5977,12 +6005,14 @@ lock_rec_insert_check_and_lock(
 	const lock_t*	wait_for = lock_rec_other_has_conflicting(
 				type_mode, block, heap_no, trx);
 
+	sql_print_information("[%s:%d] in lock_rec_insert_check_and_lock, wait_for: %p", __FILE__, __LINE__, wait_for);
 	if (wait_for != NULL) {
 
 		RecLock	rec_lock(thr, index, block, heap_no, type_mode);
 
 		trx_mutex_enter(trx);
 
+		sql_print_information("[%s:%d] call add_to_waitq", __FILE__, __LINE__);
 		err = rec_lock.add_to_waitq(wait_for);
 
 		trx_mutex_exit(trx);
@@ -6051,7 +6081,7 @@ lock_rec_convert_impl_to_expl_for_trx(
 	ut_ad(trx_is_referenced(trx));
 
 	DEBUG_SYNC_C("before_lock_rec_convert_impl_to_expl_for_trx");
-
+	sql_print_information("[%s:%d] enter lock_rec_convert_impl_to_expl_for_trx", __FILE__, __LINE__);
 	lock_mutex_enter();
 
 	ut_ad(!trx_state_eq(trx, TRX_STATE_NOT_STARTED));
@@ -6088,7 +6118,7 @@ lock_rec_convert_impl_to_expl(
 	const ulint*		offsets)/*!< in: rec_get_offsets(rec, index) */
 {
 	trx_t*		trx;
-
+	sql_print_information("[%s:%d] enter lock_rec_convert_impl_to_expl", __FILE__, __LINE__);
 	ut_ad(!lock_mutex_own());
 	ut_ad(page_rec_is_user_rec(rec));
 	ut_ad(rec_offs_validate(rec, index, offsets));
@@ -6109,8 +6139,10 @@ lock_rec_convert_impl_to_expl(
 				LOCK_S | LOCK_REC_NOT_GAP, trx, rec, block));
 	}
 
+	sql_print_information("[%s:%d] in lock_rec_convert_impl_to_expl, trx: %p", __FILE__, __LINE__, trx);
 	if (trx != 0) {
-		ulint	heap_no = page_rec_get_heap_no(rec);
+	        ulint	heap_no = page_rec_get_heap_no(rec);
+		sql_print_information("[%s:%d] in lock_rec_convert_impl_to_expl, trx id: %lu, heap_no: %lu", __FILE__, __LINE__, trx->id, heap_no);
 
 		ut_ad(trx_is_referenced(trx));
 
@@ -6390,7 +6422,7 @@ lock_clust_rec_read_check_and_lock(
 {
 	dberr_t	err;
 	ulint	heap_no;
-
+	sql_print_information("[%s:%d] enter lock_clust_rec_read_check_and_lock", __FILE__, __LINE__);
 	ut_ad(dict_index_is_clust(index));
 	ut_ad(block->frame == page_align(rec));
 	ut_ad(page_rec_is_user_rec(rec) || page_rec_is_supremum(rec));
@@ -6398,6 +6430,7 @@ lock_clust_rec_read_check_and_lock(
 	      || gap_mode == LOCK_REC_NOT_GAP);
 	ut_ad(rec_offs_validate(rec, index, offsets));
 
+	sql_print_information("[%s:%d]", __FILE__, __LINE__);
 	if ((flags & BTR_NO_LOCKING_FLAG)
 	    || srv_read_only_mode
 	    || dict_table_is_temporary(index->table)) {
@@ -6405,20 +6438,27 @@ lock_clust_rec_read_check_and_lock(
 		return(DB_SUCCESS);
 	}
 
+	sql_print_information("[%s:%d]", __FILE__, __LINE__);
 	heap_no = page_rec_get_heap_no(rec);
 
+	sql_print_information("[%s:%d]", __FILE__, __LINE__);
 	if (heap_no != PAGE_HEAP_NO_SUPREMUM) {
-
+	  sql_print_information("[%s:%d] call lock_rec_convert_impl_to_expl", __FILE__, __LINE__);
 		lock_rec_convert_impl_to_expl(block, rec, index, offsets);
 	}
 
+	sql_print_information("[%s:%d]", __FILE__, __LINE__);
 	lock_mutex_enter();
 
+	sql_print_information("[%s:%d]", __FILE__, __LINE__);
 	ut_ad(mode != LOCK_X
 	      || lock_table_has(thr_get_trx(thr), index->table, LOCK_IX));
+	sql_print_information("[%s:%d]", __FILE__, __LINE__);
 	ut_ad(mode != LOCK_S
 	      || lock_table_has(thr_get_trx(thr), index->table, LOCK_IS));
 
+	sql_print_information("[%s:%d]", __FILE__, __LINE__);
+	sql_print_information("[%s:%d] call lock_rec_lock", __FILE__, __LINE__);
 	err = lock_rec_lock(FALSE, mode | gap_mode, block, heap_no, index, thr);
 
 	MONITOR_INC(MONITOR_NUM_RECLOCK_REQ);
@@ -6757,7 +6797,7 @@ lock_cancel_waiting_and_release(
 	lock_t*	lock)	/*!< in/out: waiting lock request */
 {
 	que_thr_t*	thr;
-
+	sql_print_information("[%s:%d] enter lock_cancel_waiting_and_release", __FILE__, __LINE__);
 	ut_ad(lock_mutex_own());
 	ut_ad(trx_mutex_own(lock->trx));
 
@@ -6835,7 +6875,7 @@ lock_trx_release_locks(
 	trx_t*	trx)	/*!< in/out: transaction */
 {
 	check_trx_state(trx);
-
+	sql_print_information("[%s:%d] enter lock_trx_release_locks", __FILE__, __LINE__);
 	if (trx_state_eq(trx, TRX_STATE_PREPARED)) {
 
 		mutex_enter(&trx_sys->mutex);

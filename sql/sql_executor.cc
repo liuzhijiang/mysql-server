@@ -1305,7 +1305,7 @@ sub_select(JOIN *join, QEP_TAB *const qep_tab, bool end_of_records)
       for (idx = 0; idx < qep_tab->table()->visible_field_count(); idx++)
       {
         Field *f = qep_tab->table()->visible_field_ptr()[idx];
-        sql_print_information("[%s:%d] field: %p, ptr: %p, ptr: %s", __FILE__, __LINE__, f, f->ptr, f->ptr);
+        sql_print_information("[%s:%d] field: %p, ptr: %p, ptr: %p", __FILE__, __LINE__, f, f->ptr, f->ptr);
       }
 
       if (qep_tab->keep_current_rowid)
@@ -2769,49 +2769,67 @@ void QEP_TAB::pick_table_access_method(const JOIN_TAB *join_tab)
   DBUG_ASSERT(!join_tab->reversed_access || type() == JT_REF ||
               type() == JT_INDEX_SCAN);
   // Fall through to set default access functions:
+  sql_print_information("[%s:%d] QEP_TAB type: %d", __FILE__, __LINE__, type());
   switch (type())
   {
   case JT_REF:
+    sql_print_information("JT_REF");
     if (join_tab->reversed_access)
     {
+      sql_print_information("pick_table_access_method: %s, %s", "join_read_last_key", "join_read_prev_same");
       read_first_record = join_read_last_key;
       read_record.read_record = join_read_prev_same;
     }
     else
     {
+      sql_print_information("pick_table_access_method: %s, %s", "join_read_always_key", "join_read_next_same");
       read_first_record = join_read_always_key;
       read_record.read_record = join_read_next_same;
     }
     break;
 
   case JT_REF_OR_NULL:
+    sql_print_information("JT_REF_OR_NULL");
+    sql_print_information("pick_table_access_method: %s, %s", "join_read_always_key_or", "join_read_next_same_or_null");
     read_first_record = join_read_always_key_or_null;
     read_record.read_record = join_read_next_same_or_null;
     break;
 
   case JT_CONST:
+    sql_print_information("JT_CONST");
+    sql_print_information("pick_table_access_method: %s, %s", "join_read_const", "join_no_more_records");
     read_first_record = join_read_const;
     read_record.read_record = join_no_more_records;
     read_record.unlock_row = join_const_unlock_row;
     break;
 
   case JT_EQ_REF:
+    sql_print_information("JT_EQ_REF");
+    sql_print_information("pick_table_access_method: %s, %s", "join_read_key", "join_no_more_records");
     read_first_record = join_read_key;
     read_record.read_record = join_no_more_records;
     read_record.unlock_row = join_read_key_unlock_row;
     break;
 
   case JT_FT:
+    sql_print_information("JT_FT");
+    sql_print_information("pick_table_access_method: %s, %s", "join_ft_read_first", "join_ft_read_next");
     read_first_record = join_ft_read_first;
     read_record.read_record = join_ft_read_next;
     break;
 
   case JT_INDEX_SCAN:
+    sql_print_information("JT_INDEX_SCAN");
+    sql_print_information("pick_table_access_method: %s, %s", "join_read_last or join_read_first", "");
     read_first_record = join_tab->reversed_access ? join_read_last : join_read_first;
     break;
   case JT_ALL:
+    sql_print_information("JT_ALL");
   case JT_RANGE:
+    sql_print_information("JT_RANGE");
   case JT_INDEX_MERGE:
+    sql_print_information("JT_INDEX_MERGE");
+    sql_print_information("pick_table_access_method: %s, %s", "join_init_quick_read_record or join_init_read_record", "");
     read_first_record = (join_tab->use_quick == QS_DYNAMIC_RANGE) ? join_init_quick_read_record : join_init_read_record;
     break;
   default:

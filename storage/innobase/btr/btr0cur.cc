@@ -51,7 +51,7 @@ Created 10/16/1994 Heikki Tuuri
 *******************************************************/
 
 #include "btr0cur.h"
-
+#include "log.h"
 #ifdef UNIV_NONINL
 #include "btr0cur.ic"
 #endif
@@ -2943,7 +2943,7 @@ btr_cur_ins_lock_and_undo(
 	dberr_t		err = DB_SUCCESS;
 	rec_t*		rec;
 	roll_ptr_t	roll_ptr;
-
+	sql_print_information("[%s:%d] enter btr_cur_ins_lock_and_undo", __FILE__, __LINE__);
 	/* Check if we have to wait for a lock: enqueue an explicit lock
 	request if yes */
 
@@ -2974,6 +2974,7 @@ btr_cur_ins_lock_and_undo(
 				index, thr, mtr, &prdt);
 			*inherit = false;
 		} else {
+		        sql_print_information("[%s:%d] call lock_rec_insert_check_and_lock", __FILE__, __LINE__);
 			err = lock_rec_insert_check_and_lock(
 				flags, rec, btr_cur_get_block(cursor),
 				index, thr, mtr, inherit);
@@ -3084,7 +3085,7 @@ btr_cur_optimistic_insert(
 	dberr_t		err;
 
 	*big_rec = NULL;
-
+	sql_print_information("[%s:%d] enter btr_cur_optimistic_insert", __FILE__, __LINE__);
 	block = btr_cur_get_block(cursor);
 	page = buf_block_get_frame(block);
 	index = cursor->index;
@@ -3214,6 +3215,7 @@ fail_err:
 		} else {
 			/* Check locks and write to the undo log,
 			if specified */
+		        sql_print_information("[%s:%d] call btr_cur_ins_lock_and_undo", __FILE__, __LINE__);
 			err = btr_cur_ins_lock_and_undo(flags, cursor, entry,
 							thr, mtr, &inherit);
 

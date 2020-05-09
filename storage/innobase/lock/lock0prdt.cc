@@ -32,7 +32,7 @@ Created 9/7/2013 Jimmy Yang
 *******************************************************/
 
 #define LOCK_MODULE_IMPLEMENTATION
-
+#include "log.h"
 #include "lock0lock.h"
 #include "lock0priv.h"
 #include "lock0prdt.h"
@@ -895,6 +895,7 @@ lock_prdt_lock(
 			trx_mutex_exit(trx);
 
 			if (!lock_rec_get_nth_bit(lock, PRDT_HEAPNO)) {
+			  sql_print_information("[%s:%d] call lock_rec_set_nth_bit heap_no: %d", __FILE__, __LINE__, PRDT_HEAPNO);
 				lock_rec_set_nth_bit(lock, PRDT_HEAPNO);
 				status = LOCK_REC_SUCCESS_CREATED;
 			}

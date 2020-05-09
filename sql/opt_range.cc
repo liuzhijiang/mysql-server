@@ -10774,6 +10774,7 @@ int QUICK_INDEX_MERGE_SELECT::read_keys_and_merge()
 
 int QUICK_INDEX_MERGE_SELECT::get_next()
 {
+  sql_print_information("[%s:%d] enter get_next", __FILE__, __LINE__);
   int result;
   DBUG_ENTER("QUICK_INDEX_MERGE_SELECT::get_next");
 
@@ -10829,6 +10830,7 @@ int QUICK_INDEX_MERGE_SELECT::get_next()
 
 int QUICK_ROR_INTERSECT_SELECT::get_next()
 {
+  sql_print_information("[%s:%d] enter get_next", __FILE__, __LINE__);
   List_iterator_fast<QUICK_RANGE_SELECT> quick_it(quick_selects);
   QUICK_RANGE_SELECT* quick;
 
@@ -10946,6 +10948,7 @@ int QUICK_ROR_INTERSECT_SELECT::get_next()
 
 int QUICK_ROR_UNION_SELECT::get_next()
 {
+  sql_print_information("[%s:%d] enter get_next", __FILE__, __LINE__);
   int error, dup_row;
   QUICK_SELECT_I *quick;
   uchar *tmp;
@@ -11223,6 +11226,7 @@ char* &mrr_get_ptr_by_idx(range_seq_t seq, uint idx)
 
 int QUICK_RANGE_SELECT::get_next()
 {
+  sql_print_information("[%s:%d] enter get_next", __FILE__, __LINE__);
   char *dummy;
   MY_BITMAP * const save_read_set= head->read_set;
   MY_BITMAP * const save_write_set= head->write_set;
@@ -11331,6 +11335,7 @@ int QUICK_RANGE_SELECT::get_next_prefix(uint prefix_length,
 
 int QUICK_RANGE_SELECT_GEOM::get_next()
 {
+  sql_print_information("[%s:%d] enter get_next", __FILE__, __LINE__);
   DBUG_ENTER("QUICK_RANGE_SELECT_GEOM::get_next");
 
   for (;;)
@@ -11450,6 +11455,7 @@ QUICK_SELECT_DESC::QUICK_SELECT_DESC(QUICK_RANGE_SELECT *q,
 
 int QUICK_SELECT_DESC::get_next()
 {
+  sql_print_information("[%s:%d] enter get_next", __FILE__, __LINE__);
   DBUG_ENTER("QUICK_SELECT_DESC::get_next");
 
   /* The max key is handled as follows:
@@ -13910,6 +13916,7 @@ int QUICK_GROUP_MIN_MAX_SELECT::reset(void)
 
 int QUICK_GROUP_MIN_MAX_SELECT::get_next()
 {
+  sql_print_information("[%s:%d] enter get_next", __FILE__, __LINE__);
   int min_res= 0;
   int max_res= 0;
   int result;

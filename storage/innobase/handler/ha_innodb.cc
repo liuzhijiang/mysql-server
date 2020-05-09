@@ -43,7 +43,7 @@ this program; if not, write to the Free Software Foundation, Inc.,
 /** @file ha_innodb.cc */
 
 #include "univ.i"
-
+#include "log.h"
 /* Include necessary SQL headers */
 #include "ha_prototypes.h"
 #include <debug_sync.h>
@@ -1350,7 +1350,7 @@ innobase_create_handler(
 		}
 		return(file);
 	}
-
+	sql_print_information("[%s:%d] enter innobase_create_handler", __FILE__, __LINE__);
 	return(new (mem_root) ha_innobase(hton, table));
 }
 
@@ -2832,7 +2832,17 @@ ha_innobase::ha_innobase(
 	m_start_of_scan(),
 	m_num_write_row(),
         m_mysql_has_locked()
-{}
+{
+  sql_print_information("[%s:%d] enter ha_innobase::ha_innobase: %p, table_share: %p", __FILE__, __LINE__, this,table_arg);
+  if (table_arg != NULL )
+    {
+      sql_print_information("[%s:%d] enter ha_innobase::ha_innobase: %p, table_name length: %lu", __FILE__, __LINE__, this, table_arg->table_name.length);
+      if (table_arg->table_name.length > 0)
+	{
+	  sql_print_information("[%s:%d] enter ha_innobase::ha_innobase: %p, table_name: %s", __FILE__, __LINE__, this, table_arg->table_name.str);
+	}
+    }
+}
 
 /*********************************************************************//**
 Destruct ha_innobase handler. */
@@ -8659,7 +8669,7 @@ ha_innobase::index_read(
 {
 	DBUG_ENTER("index_read");
 	DEBUG_SYNC_C("ha_innobase_index_read_begin");
-
+	sql_print_information("[%s:%d} find_flag: %d", __FILE__, __LINE__, find_flag);
 	ut_a(m_prebuilt->trx == thd_to_trx(m_user_thd));
 	ut_ad(key_len != 0 || find_flag != HA_READ_KEY_EXACT);
 
@@ -15708,7 +15718,8 @@ ha_innobase::external_lock(
 	}
 
 	if (lock_type == F_WRLCK) {
-
+	  sql_print_information("[%s:%d] lock_type is F_WRLCK", __FILE__, __LINE__);
+	  sql_print_information("[%s:%d] select_lock_type = LOCK_X", __FILE__, __LINE__);
 		/* If this is a SELECT, then it is in UPDATE TABLE ...
 		or SELECT ... FOR UPDATE */
 		m_prebuilt->select_lock_type = LOCK_X;
@@ -16606,6 +16617,7 @@ ha_innobase::store_lock(
 			m_prebuilt->select_lock_type = LOCK_NONE;
 			m_prebuilt->stored_select_lock_type = LOCK_NONE;
 		} else {
+		        sql_print_information("[%s:%d] select_lock_type = LOCK_S", __FILE__, __LINE__);
 			m_prebuilt->select_lock_type = LOCK_S;
 			m_prebuilt->stored_select_lock_type = LOCK_S;
 		}

@@ -31,7 +31,7 @@ Contains also create table and other data dictionary operations.
 
 Created 9/17/2000 Heikki Tuuri
 *******************************************************/
-
+#include "log.h"
 #include "ha_prototypes.h"
 #include <debug_sync.h>
 #include <gstream.h>
@@ -735,8 +735,9 @@ row_mysql_handle_errors(
 	que_thr_t*	thr,	/*!< in: query thread, or NULL */
 	trx_savept_t*	savept)	/*!< in: savepoint, or NULL */
 {
+        sql_print_information("[%s:%d] enter row_mysql_handle_errors", __FILE__, __LINE__);
 	dberr_t	err;
-
+	
 handle_new_error:
 	err = trx->error_state;
 
@@ -777,11 +778,11 @@ handle_new_error:
 		/* MySQL will roll back the latest SQL statement */
 		break;
 	case DB_LOCK_WAIT:
-
+	        sql_print_information("[%s:%d] process DB_LOCK_WAIT", __FILE__, __LINE__);
 		trx_kill_blocking(trx);
-
+		sql_print_information("[%s:%d]", __FILE__, __LINE__);
 		lock_wait_suspend_thread(thr);
-
+		sql_print_information("[%s:%d]", __FILE__, __LINE__);
 		if (trx->error_state != DB_SUCCESS) {
 			que_thr_stop_for_mysql(thr);
 

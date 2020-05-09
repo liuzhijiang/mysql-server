@@ -26,7 +26,7 @@
   @brief
   Functions for easy reading of records, possible through a cache
 */
-
+#include "log.h"
 #include "records.h"
 #include "sql_list.h"
 #include "filesort.h"            // filesort_free_buffers
@@ -192,7 +192,7 @@ bool init_read_record(READ_RECORD *info,THD *thd,
   int error= 0;
   IO_CACHE *tempfile;
   DBUG_ENTER("init_read_record");
-
+  sql_print_information("[%s:%d] enter init_read_record", __FILE__, __LINE__);
   // If only 'table' is given, assume no quick, no condition.
   DBUG_ASSERT(!(table && qep_tab));
   if (!table)
@@ -241,13 +241,20 @@ bool init_read_record(READ_RECORD *info,THD *thd,
     {
       DBUG_PRINT("info",("using rr_unpack_from_tempfile"));
       if (table->sort.addon_fields->using_packed_addons())
-        info->read_record= rr_unpack_from_tempfile<true>;
+	{
+	  sql_print_information("[%s:%d] read_record = rr_unpack_from_tempfile<true>", __FILE__, __LINE__);
+	  info->read_record= rr_unpack_from_tempfile<true>;
+	}
       else
-        info->read_record= rr_unpack_from_tempfile<false>;
+	{
+	  sql_print_information("[%s:%d] read_record = rr_unpack_from_tempfile<false>", __FILE__, __LINE__);
+	  info->read_record= rr_unpack_from_tempfile<false>;
+	}
     }
     else
     {
       DBUG_PRINT("info",("using rr_from_tempfile"));
+      sql_print_information("[%s:%d] read_record = rr_from_tempfile", __FILE__, __LINE__);
       info->read_record= rr_from_tempfile;
     }
 
@@ -280,12 +287,14 @@ bool init_read_record(READ_RECORD *info,THD *thd,
       if (init_rr_cache(thd, info))
         goto skip_caching;
       DBUG_PRINT("info",("using rr_from_cache"));
+      sql_print_information("[%s:%d] read_record = rr_from_cache", __FILE__, __LINE__);
       info->read_record=rr_from_cache;
     }
   }
   else if (info->quick)
   {
     DBUG_PRINT("info",("using rr_quick"));
+    sql_print_information("[%s:%d] read_record = rr_quick", __FILE__, __LINE__);
     info->read_record=rr_quick;
   }
   // See save_index() which stores the filesort result set.
@@ -301,14 +310,21 @@ bool init_read_record(READ_RECORD *info,THD *thd,
       DBUG_ASSERT(table->sort.sorted_result_in_fsbuf);
       info->unpack_counter= 0;
       if (table->sort.addon_fields->using_packed_addons())
-        info->read_record= rr_unpack_from_buffer<true>;
+	{
+	  sql_print_information("[%s:%d] read_record = rr_unpack_from_buffer<true>", __FILE__, __LINE__);
+	  info->read_record= rr_unpack_from_buffer<true>;
+	}
       else
-        info->read_record= rr_unpack_from_buffer<false>;
+	{
+	  sql_print_information("[%s:%d] read_record = rr_unpack_from_buffer<false>", __FILE__, __LINE__);
+	  info->read_record= rr_unpack_from_buffer<false>;
+	}
       info->cache_end= table->sort.sorted_result_end;
     }
     else
     {
       DBUG_PRINT("info",("using rr_from_pointers"));
+      sql_print_information("[%s:%d] read_record = rr_from_pointers", __FILE__, __LINE__);
       info->read_record= rr_from_pointers;
       info->cache_end=
         info->cache_pos + table->sort.found_records * info->ref_length;
@@ -317,6 +333,7 @@ bool init_read_record(READ_RECORD *info,THD *thd,
   else
   {
     DBUG_PRINT("info",("using rr_sequential"));
+    sql_print_information("[%s:%d] read_record = rr_sequential", __FILE__, __LINE__);
     info->read_record=rr_sequential;
     if ((error= table->file->ha_rnd_init(1)))
       goto err;
@@ -401,6 +418,7 @@ static int rr_handle_error(READ_RECORD *info, int error)
 
 static int rr_quick(READ_RECORD *info)
 {
+  sql_print_information("[%s:%d] enter rr_quick", __FILE__, __LINE__);
   int tmp;
   while ((tmp= info->quick->get_next()))
   {

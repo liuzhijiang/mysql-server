@@ -32,7 +32,7 @@ Created 25/5/2010 Sunny Bains
 *******************************************************/
 
 #define LOCK_MODULE_IMPLEMENTATION
-
+#include "log.h"
 #include "ha_prototypes.h"
 #include <mysql/service_thd_wait.h>
 
@@ -204,7 +204,7 @@ lock_wait_suspend_thread(
 	ib_time_monotonic_ms_t 		start_time = 0;
 	ib_time_monotonic_ms_t 		finish_time;
 	ulong		lock_wait_timeout;
-
+	sql_print_information("[%s:%d]", __FILE__, __LINE__);
 	trx = thr_get_trx(thr);
 
 	if (trx->mysql_thd != 0) {
@@ -242,9 +242,9 @@ lock_wait_suspend_thread(
 	}
 
 	ut_ad(!thr->is_active);
-
+	sql_print_information("[%s:%d]", __FILE__, __LINE__);
 	slot = lock_wait_table_reserve_slot(thr, lock_wait_timeout);
-
+	sql_print_information("[%s:%d]", __FILE__, __LINE__);
 	if (thr->lock_state == QUE_THR_LOCK_ROW) {
 		srv_stats.n_lock_wait_count.inc();
 		srv_stats.n_lock_wait_current_count.inc();
@@ -303,7 +303,7 @@ lock_wait_suspend_thread(
 
 		srv_conc_force_exit_innodb(trx);
 	}
-
+	sql_print_information("[%s:%d]", __FILE__, __LINE__);
 	/* Unknown is also treated like a record lock */
 	if (lock_type == ULINT_UNDEFINED || lock_type == LOCK_REC) {
 		thd_wait_begin(trx->mysql_thd, THD_WAIT_ROW_LOCK);
@@ -311,11 +311,11 @@ lock_wait_suspend_thread(
 		ut_ad(lock_type == LOCK_TABLE);
 		thd_wait_begin(trx->mysql_thd, THD_WAIT_TABLE_LOCK);
 	}
-
+	sql_print_information("[%s:%d]", __FILE__, __LINE__);
 	os_event_wait(slot->event);
-
+	sql_print_information("[%s:%d]", __FILE__, __LINE__);
 	thd_wait_end(trx->mysql_thd);
-
+	sql_print_information("[%s:%d]", __FILE__, __LINE__);
 	/* After resuming, reacquire the data dictionary latch if
 	necessary. */
 
@@ -393,7 +393,7 @@ lock_wait_release_thread_if_suspended(
 {
 	ut_ad(lock_mutex_own());
 	ut_ad(trx_mutex_own(thr_get_trx(thr)));
-
+	sql_print_information("[%s:%d] enter lock_wait_release_thread_if_suspended", __FILE__, __LINE__);
 	/* We own both the lock mutex and the trx_t::mutex but not the
 	lock wait mutex. This is OK because other threads will see the state
 	of this slot as being in use and no other thread can change the state

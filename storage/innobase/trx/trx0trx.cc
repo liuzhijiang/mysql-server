@@ -30,7 +30,7 @@ The transaction
 
 Created 3/26/1996 Heikki Tuuri
 *******************************************************/
-
+#include "log.h"
 #include "ha_prototypes.h"
 
 #include "trx0trx.h"
@@ -1924,7 +1924,7 @@ trx_commit_in_memory(
 				written */
 {
 	trx->must_flush_log_later = false;
-
+	sql_print_information("[%s:%d] enter trx_commit_in_memory", __FILE__, __LINE__);
 	if (trx_is_autocommit_non_locking(trx)) {
 		ut_ad(trx->id == 0);
 		ut_ad(trx->read_only);
@@ -2111,7 +2111,7 @@ trx_commit_low(
 	ut_ad(!trx_state_eq(trx, TRX_STATE_COMMITTED_IN_MEMORY));
 	ut_ad(!mtr || mtr->is_active());
 	ut_ad(!mtr == !(trx_is_rseg_updated(trx)));
-
+	sql_print_information("[%s:%d] enter trx_commit_low", __FILE__, __LINE__);
 	/* undo_no is non-zero if we're doing the final commit. */
 	if (trx->fts_trx != NULL && trx->undo_no != 0) {
 		dberr_t	error;
@@ -2198,7 +2198,7 @@ trx_commit(
 {
 	mtr_t*	mtr;
 	mtr_t	local_mtr;
-
+	sql_print_information("[%s:%d] enter trx_commit", __FILE__, __LINE__);
 	DBUG_EXECUTE_IF("ib_trx_commit_crash_before_trx_commit_start",
 			DBUG_SUICIDE(););
 

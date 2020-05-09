@@ -39,7 +39,7 @@ Created 12/19/1997 Heikki Tuuri
 *******************************************************/
 
 #include "row0sel.h"
-
+#include "log.h"
 #ifdef UNIV_NONINL
 #include "row0sel.ic"
 #endif
@@ -4589,6 +4589,27 @@ row_sel_fill_vrow(
 	}
 }
 
+
+void print_search_tuple(const dtuple_t*dtuple){
+  if (dtuple == NULL)
+    {
+      return;
+    }
+  sql_print_information("[%s:%d] enter print_search_tuple", __FILE__, __LINE__);
+  sql_print_information("[%s:%d] n_fields: %lu", __FILE__, __LINE__, dtuple->n_fields);
+  for (unsigned long int i = 0; i < dtuple->n_fields; i++)
+    {
+      sql_print_information("[%s:%d] type: %d, len: %d, data: %p",
+			    __FILE__, __LINE__,
+			    dtuple->fields[i].type.mtype,
+			    dtuple->fields[i].len,
+			    dtuple->fields[i].data);
+      for (unsigned long int j = 0; j < dtuple->fields[i].len; j++)
+	{
+	  sql_print_information("[%s:%d] field: %lu, %lu-th unsigned char: [%0X]", __FILE__, __LINE__, i, j, ((unsigned char*)(dtuple->fields[i].data))[j]);
+	}
+    }
+}
 /** Searches for rows in the database using cursor.
 Function is mainly used for tables that are shared accorss connection and
 so it employs technique that can help re-construct the rows that
@@ -4616,7 +4637,9 @@ row_search_mvcc(
 	ulint		match_mode,
 	ulint		direction)
 {
+
 	DBUG_ENTER("row_search_mvcc");
+	sql_print_information("[%s:%d] enter row_search_mvcc, mode: %d, match_mode: %ld", __FILE__, __LINE__, mode, match_mode);
 
 	dict_index_t*	index		= prebuilt->index;
 	ibool		comp		= dict_table_is_comp(index->table);
@@ -4702,7 +4725,8 @@ row_search_mvcc(
 	/*-------------------------------------------------------------*/
 	/* PHASE 0: Release a possible s-latch we are holding on the
 	adaptive hash index latch if there is someone waiting behind */
-
+	sql_print_information("[%s:%d] phase 0", __FILE__, __LINE__);
+	
 	if (trx->has_search_latch
 #ifndef INNODB_RW_LOCKS_USE_ATOMICS
 	    && rw_lock_get_writer(
@@ -4726,7 +4750,7 @@ row_search_mvcc(
 
 	/*-------------------------------------------------------------*/
 	/* PHASE 1: Try to pop the row from the prefetch cache */
-
+	sql_print_information("[%s:%d] phase 1", __FILE__, __LINE__);
 	if (UNIV_UNLIKELY(direction == 0)) {
 		trx->op_info = "starting index read";
 
@@ -4802,7 +4826,9 @@ row_search_mvcc(
 	delete-marked versions of a record where only the primary key
 	values differ: thus in a secondary index we must use next-key
 	locks when locking delete-marked records. */
-
+	sql_print_information("[%s:%d] match_mode:%ld, ROW_SEL_EXACT:%d, dict_index_is_unique(index):%ld, dtuple_get_n_fields(search_tuple):%ld, dict_index_get_n_unique(index):%ld, dict_index_is_clust(index):%ld, dtuple_contains_null(search_tuple):%ld",
+			      __FILE__, __LINE__,
+			      match_mode, ROW_SEL_EXACT, dict_index_is_unique(index), dtuple_get_n_fields(search_tuple), dict_index_get_n_unique(index), dict_index_is_clust(index), dtuple_contains_null(search_tuple));
 	if (match_mode == ROW_SEL_EXACT
 	    && dict_index_is_unique(index)
 	    && dtuple_get_n_fields(search_tuple)
@@ -4815,7 +4841,7 @@ row_search_mvcc(
 		null. A clustered index under MySQL can never contain null
 		columns because we demand that all the columns in primary key
 		are non-null. */
-
+	  sql_print_information("[%s:%d] unique_search = TRUE", __FILE__, __LINE__);
 		unique_search = TRUE;
 
 		/* Even if the condition is unique, MySQL seems to try to
@@ -4829,6 +4855,8 @@ row_search_mvcc(
 			err = DB_RECORD_NOT_FOUND;
 			goto func_exit;
 		}
+	}else{
+	  sql_print_information("[%s:%d] unique_search = FALSE", __FILE__, __LINE__);
 	}
 
 	/* We don't support sequencial scan for Rtree index, because it
@@ -4843,7 +4871,7 @@ row_search_mvcc(
 
 	/*-------------------------------------------------------------*/
 	/* PHASE 2: Try fast adaptive hash index search if possible */
-
+	sql_print_information("[%s:%d] phase 2", __FILE__, __LINE__);
 	/* Next test if this is the special case where we can use the fast
 	adaptive hash index to try the search. Since we must release the
 	search system latch when we retrieve an externally stored field, we
@@ -4969,7 +4997,8 @@ row_search_mvcc(
 
 	/*-------------------------------------------------------------*/
 	/* PHASE 3: Open or restore index cursor position */
-
+	sql_print_information("[%s:%d] phase 3", __FILE__, __LINE__);
+	
 	trx_search_latch_release_if_reserved(trx);
 
 	spatial_search = dict_index_is_spatial(index)
@@ -5181,7 +5210,7 @@ rec_loop:
 
 	/*-------------------------------------------------------------*/
 	/* PHASE 4: Look for matching records in a loop */
-
+	sql_print_information("[%s:%d] phase 4", __FILE__, __LINE__);
 	rec = btr_pcur_get_rec(pcur);
 
 	ut_ad(!!page_rec_is_comp(rec) == comp);
@@ -5481,6 +5510,9 @@ wrong_offs:
 	/* We are ready to look at a possible new index entry in the result
 	set: the cursor is now placed on a user record */
 
+	
+
+	print_search_tuple(search_tuple);
 	if (prebuilt->select_lock_type != LOCK_NONE) {
 		/* Try to place a lock on the index record; note that delete
 		marked records are a special case in a unique search. If there
@@ -5493,15 +5525,23 @@ wrong_offs:
 		not used. */
 
 		ulint	lock_type;
-
+		sql_print_information("[%s:%d] rec heap_no: %ld", __FILE__, __LINE__, page_rec_get_heap_no(rec));
+		sql_print_information("[%s:%d] set_also_gap_locks: %ld, srv_locks_unsafe_for_binlog: %ld, trx->isolation_level:%ld, TRX_ISO_READ_COMMITTED: %d, unique_search: %ld, rec_get_deleted_flag(rec,  comp): %ld, dict_index_is_spatial(index): %ld",
+				      __FILE__, __LINE__,
+				      set_also_gap_locks,
+				      srv_locks_unsafe_for_binlog,
+				      trx->isolation_level, TRX_ISO_READ_COMMITTED,
+				      unique_search, rec_get_deleted_flag(rec, comp),
+				      dict_index_is_spatial(index));
 		if (!set_also_gap_locks
 		    || srv_locks_unsafe_for_binlog
 		    || trx->isolation_level <= TRX_ISO_READ_COMMITTED
 		    || (unique_search && !rec_get_deleted_flag(rec, comp))
 		    || dict_index_is_spatial(index)) {
-
+		  sql_print_information("[%s:%d] no_gap_lock", __FILE__, __LINE__);
 			goto no_gap_lock;
 		} else {
+		  sql_print_information("[%s:%d] lock_type = LOCK_ORDINARY", __FILE__, __LINE__);
 			lock_type = LOCK_ORDINARY;
 		}
 
@@ -5516,6 +5556,12 @@ wrong_offs:
 		col1 >= 100, and we find a record where col1 = 100, then no
 		need to lock the gap before that record. */
 
+		sql_print_information("[%s:%d] index: %p, clust_index: %p, mode: %d, PAGE_CUR_GE: %d, direction: %ld, dtuple_get_n_fields_cmp(search_tuple): %ld, dict_index_get_n_unique(index): %ld, cmp_dtuple_rec(search_tuple, rec, offsets): %d",
+				      __FILE__, __LINE__, index, clust_index,
+				      mode, PAGE_CUR_GE,
+				      direction,
+				      dtuple_get_n_fields_cmp(search_tuple), dict_index_get_n_unique(index),
+				      cmp_dtuple_rec(search_tuple, rec, offsets));
 		if (index == clust_index
 		    && mode == PAGE_CUR_GE
 		    && direction == 0
@@ -5523,13 +5569,16 @@ wrong_offs:
 		    == dict_index_get_n_unique(index)
 		    && 0 == cmp_dtuple_rec(search_tuple, rec, offsets)) {
 no_gap_lock:
+		  sql_print_information("[%s:%d] no_gap_lock", __FILE__, __LINE__);
 			lock_type = LOCK_REC_NOT_GAP;
 		}
 
+		sql_print_information("[%s:%d] in row_search_mvcc lock_type: %lX", __FILE__, __LINE__, lock_type);
 		err = sel_set_rec_lock(pcur,
 				       rec, index, offsets,
 				       prebuilt->select_lock_type,
 				       lock_type, thr, &mtr);
+		sql_print_information("[%s:%d] sel_set_rec_lock ret: %d", __FILE__, __LINE__, err);
 
 		switch (err) {
 			const rec_t*	old_vers;
@@ -5544,10 +5593,12 @@ no_gap_lock:
 			err = DB_SUCCESS;
  			// Fall through
 		case DB_SUCCESS:
+		        sql_print_information("[%s:%d] sel_set_rec_lock DB_SUCCESS", __FILE__, __LINE__);
 			break;
 		case DB_LOCK_WAIT:
 			/* Lock wait for R-tree should already
 			be handled in sel_set_rtr_rec_lock() */
+		        sql_print_information("[%s:%d] sel_set_rec_lock DB_LOCK_WAIT", __FILE__, __LINE__);
 			ut_ad(!dict_index_is_spatial(index));
 			/* Never unlock rows that were part of a conflict. */
 			prebuilt->new_rec_locks = 0;
@@ -5572,7 +5623,7 @@ no_gap_lock:
 			release the lock it is waiting on. */
 
 			err = lock_trx_handle_wait(trx);
-
+			sql_print_information("[%s:%d] lock_trx_handle_wait ret: %d", __FILE__, __LINE__, err);
 			switch (err) {
 			case DB_SUCCESS:
 				/* The lock was granted while we were
@@ -6065,7 +6116,7 @@ next_rec:
 
 	/*-------------------------------------------------------------*/
 	/* PHASE 5: Move the cursor to the next index record */
-
+	sql_print_information("[%s:%d] phase 5", __FILE__, __LINE__);
 	/* NOTE: For moves_up==FALSE, the mini-transaction will be
 	committed and restarted every time when switching b-tree
 	pages. For moves_up==TRUE in index condition pushdown, we can
@@ -6138,6 +6189,7 @@ not_moved:
 	goto rec_loop;
 
 lock_wait_or_error:
+	sql_print_information("[%s:%d] lock_wait_or_error", __FILE__, __LINE__);
 	/* Reset the old and new "did semi-consistent read" flags. */
 	if (UNIV_UNLIKELY(prebuilt->row_read_type
 			  == ROW_READ_DID_SEMI_CONSISTENT)) {
@@ -6151,6 +6203,7 @@ lock_wait_or_error:
 	}
 
 lock_table_wait:
+	sql_print_information("[%s:%d] lock_table_wait", __FILE__, __LINE__);
 	mtr_commit(&mtr);
 	mtr_has_extra_clust_latch = FALSE;
 

@@ -32,7 +32,7 @@ Created 4/20/1996 Heikki Tuuri
 *******************************************************/
 
 #include "ha_prototypes.h"
-
+#include "log.h"
 #include "row0row.h"
 
 #ifdef UNIV_NONINL
@@ -279,9 +279,9 @@ row_build_index_entry_low(
 		}
 
 		len = dfield_get_len(dfield2);
-
+		sql_print_information("[%s:%d] dfield data: %p, dfield2 data: %p", __FILE__, __LINE__, dfield->data, dfield2->data);
 		dfield_copy(dfield, dfield2);
-
+		sql_print_information("[%s:%d] dfield data: %p, dfield2 data: %p", __FILE__, __LINE__, dfield->data, dfield2->data);
 		if (dfield_is_null(dfield)) {
 			continue;
 		}

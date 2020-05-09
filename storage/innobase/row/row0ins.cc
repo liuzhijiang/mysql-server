@@ -32,7 +32,7 @@ Created 4/20/1996 Heikki Tuuri
 *******************************************************/
 
 #include "ha_prototypes.h"
-
+#include "log.h"
 #include "row0ins.h"
 
 #ifdef UNIV_NONINL
@@ -1484,7 +1484,7 @@ row_ins_set_shared_rec_lock(
 	que_thr_t*		thr)	/*!< in: query thread */
 {
 	dberr_t	err;
-
+	sql_print_information("[%s:%d] enter row_ins_set_shared_rec_lock", __FILE__, __LINE__);
 	ut_ad(rec_offs_validate(rec, index, offsets));
 
 	if (dict_index_is_clust(index)) {
@@ -2287,7 +2287,7 @@ row_ins_duplicate_error_in_clust(
 	UT_NOT_USED(mtr);
 
 	ut_ad(dict_index_is_clust(cursor->index));
-
+	sql_print_information("[%s:%d] enter row_ins_duplicate_error_in_clust", __FILE__, __LINE__);
 	/* NOTE: For unique non-clustered indexes there may be any number
 	of delete marked records with the same value for the non-clustered
 	index key (remember multiversioning), and which differ only in
@@ -2301,16 +2301,18 @@ row_ins_duplicate_error_in_clust(
 	user records on the leaf level. So, even if low_match would suggest
 	that a duplicate key violation may occur, this may not be the case. */
 
+	int heap_no = 0;
 	n_unique = dict_index_get_n_unique(cursor->index);
 
 	if (cursor->low_match >= n_unique) {
 
 		rec = btr_cur_get_rec(cursor);
-
+		heap_no = page_rec_get_heap_no(rec);
+		sql_print_information("[%s:%d] rec: %p, heap_no: %d", __FILE__, __LINE__, rec, heap_no);
 		if (!page_rec_is_infimum(rec)) {
 			offsets = rec_get_offsets(rec, cursor->index, offsets,
 						  ULINT_UNDEFINED, &heap);
-
+			sql_print_information("[%s:%d]", __FILE__, __LINE__);
 			/* We set a lock on the possible duplicate: this
 			is needed in logical logging of MySQL to make
 			sure that in roll-forward we get the same duplicate
@@ -2318,6 +2320,7 @@ row_ins_duplicate_error_in_clust(
 
 			if (flags & BTR_NO_LOCKING_FLAG) {
 				/* Do nothing if no-locking is set */
+			        sql_print_information("[%s:%d]", __FILE__, __LINE__);
 				err = DB_SUCCESS;
 			} else if (trx->duplicates) {
 
@@ -2325,19 +2328,19 @@ row_ins_duplicate_error_in_clust(
 				duplicate key we will take X-lock for
 				duplicates ( REPLACE, LOAD DATAFILE REPLACE,
 				INSERT ON DUPLICATE KEY UPDATE). */
-
+			        sql_print_information("[%s:%d] sET LOCK_X", __FILE__, __LINE__);
 				err = row_ins_set_exclusive_rec_lock(
 					LOCK_REC_NOT_GAP,
 					btr_cur_get_block(cursor),
 					rec, cursor->index, offsets, thr);
 			} else {
-
+			        sql_print_information("[%s:%d] SET LOCK_S", __FILE__, __LINE__);
 				err = row_ins_set_shared_rec_lock(
 					LOCK_REC_NOT_GAP,
 					btr_cur_get_block(cursor), rec,
 					cursor->index, offsets, thr);
 			}
-
+			sql_print_information("[%s:%d] err: %d", __FILE__, __LINE__, err);
 			switch (err) {
 			case DB_SUCCESS_LOCKED_REC:
 			case DB_SUCCESS:
@@ -2345,10 +2348,11 @@ row_ins_duplicate_error_in_clust(
 			default:
 				goto func_exit;
 			}
-
+			sql_print_information("[%s:%d] lock succ, begin to check dupl", __FILE__, __LINE__);
 			if (row_ins_dupl_error_with_rec(
 				    rec, entry, cursor->index, offsets)) {
 duplicate:
+			        sql_print_information("[%s:%d] call failed, err = DB_DUPLICATE_KEY", __FILE__, __LINE__);
 				trx->error_index = cursor->index;
 				err = DB_DUPLICATE_KEY;
 				goto func_exit;
@@ -2359,24 +2363,25 @@ duplicate:
 	if (cursor->up_match >= n_unique) {
 
 		rec = page_rec_get_next(btr_cur_get_rec(cursor));
-
+		heap_no = page_rec_get_heap_no(rec);
+		sql_print_information("[%s:%d] rec: %p, heap_no: %d", __FILE__, __LINE__, rec, heap_no);
 		if (!page_rec_is_supremum(rec)) {
 			offsets = rec_get_offsets(rec, cursor->index, offsets,
 						  ULINT_UNDEFINED, &heap);
-
+			sql_print_information("[%s:%d]", __FILE__, __LINE__);
 			if (trx->duplicates) {
 
 				/* If the SQL-query will update or replace
 				duplicate key we will take X-lock for
 				duplicates ( REPLACE, LOAD DATAFILE REPLACE,
 				INSERT ON DUPLICATE KEY UPDATE). */
-
+			        sql_print_information("[%s:%d] SET LOCK_X", __FILE__, __LINE__);
 				err = row_ins_set_exclusive_rec_lock(
 					LOCK_REC_NOT_GAP,
 					btr_cur_get_block(cursor),
 					rec, cursor->index, offsets, thr);
 			} else {
-
+			        sql_print_information("[%s:%d] SET LOCK_S", __FILE__, __LINE__);
 				err = row_ins_set_shared_rec_lock(
 					LOCK_REC_NOT_GAP,
 					btr_cur_get_block(cursor),
@@ -2390,7 +2395,7 @@ duplicate:
 			default:
 				goto func_exit;
 			}
-
+			sql_print_information("[%s:%d] lock succ, begin to check dupl", __FILE__, __LINE__);
 			if (row_ins_dupl_error_with_rec(
 				    rec, entry, cursor->index, offsets)) {
 				goto duplicate;
@@ -2476,7 +2481,7 @@ row_ins_clust_index_entry_low(
 	rec_offs_init(offsets_);
 
 	DBUG_ENTER("row_ins_clust_index_entry_low");
-
+	sql_print_information("[%s:%d] enter row_ins_clust_index_entry_low", __FILE__, __LINE__);
 	ut_ad(dict_index_is_clust(index));
 	ut_ad(!dict_index_is_unique(index)
 	      || n_uniq == dict_index_get_n_unique(index));
@@ -2504,13 +2509,24 @@ row_ins_clust_index_entry_low(
 		mtr_s_lock(dict_index_get_lock(index), &mtr);
 	}
 
+	if (entry != NULL)
+	{
+	  for (uint i = 0; i < entry->n_fields; i++)
+	  {
+	    sql_print_information("[%s:%d] idx: %d, data: %p", __FILE__, __LINE__, i, entry->fields[i].data);
+	  }
+	}
+	
 	/* Note that we use PAGE_CUR_LE as the search mode, because then
 	the function will return in both low_match and up_match of the
 	cursor sensible values */
+
 	btr_pcur_open(index, entry, PAGE_CUR_LE, mode, &pcur, &mtr);
 	cursor = btr_pcur_get_btr_cur(&pcur);
 	cursor->thr = thr;
 
+	rec_t *tmp_rec = btr_cur_get_rec(cursor);
+	sql_print_information("[%s:%d] in row_ins_clust_index_entry_low, cursor record heap_no: %lu", __FILE__, __LINE__, page_rec_get_heap_no(tmp_rec))
 	ut_ad(!dict_table_is_intrinsic(index->table)
 	      || cursor->page_cur.block->made_dirty_with_no_latch);
 
@@ -2532,18 +2548,25 @@ row_ins_clust_index_entry_low(
 	      || (index->allow_duplicates
 		  && dict_table_is_intrinsic(index->table)));
 
+	sql_print_information("[%s:%d] index->allow_duplicates:%d, n_uniq: %lu, cursor->up_match: %lu, cursor->low_match: %lu",
+			      __FILE__, __LINE__,
+			      index->allow_duplicates, n_uniq,
+			      cursor->up_match,
+			      cursor->low_match);
 	if (!index->allow_duplicates
 	    && n_uniq
 	    && (cursor->up_match >= n_uniq || cursor->low_match >= n_uniq)) {
-
+	        sql_print_information("[%s:%d]", __FILE__, __LINE__);
 		if (flags
 		    == (BTR_CREATE_FLAG | BTR_NO_LOCKING_FLAG
 			| BTR_NO_UNDO_LOG_FLAG | BTR_KEEP_SYS_FLAG)) {
 			/* Set no locks when applying log
 			in online table rebuild. Only check for duplicates. */
+		        sql_print_information("[%s:%d]", __FILE__, __LINE__);
 			err = row_ins_duplicate_error_in_clust_online(
 				n_uniq, entry, cursor,
 				&offsets, &offsets_heap);
+			sql_print_information("[%s:%d]", __FILE__, __LINE__);
 
 			switch (err) {
 			case DB_SUCCESS:
@@ -2558,7 +2581,7 @@ row_ins_clust_index_entry_low(
 		} else {
 			/* Note that the following may return also
 			DB_LOCK_WAIT */
-
+		        sql_print_information("[%s:%d]", __FILE__, __LINE__);
 			err = row_ins_duplicate_error_in_clust(
 				flags, cursor, entry, thr, &mtr);
 		}
@@ -2575,10 +2598,13 @@ err_exit:
 		goto func_exit;
 	}
 
+	sql_print_information("[%s:%d]", __FILE__, __LINE__);
+	
 	/* Note: Allowing duplicates would qualify for modification of
 	an existing record as the new entry is exactly same as old entry.
 	Avoid this check if allow duplicates is enabled. */
 	if (!index->allow_duplicates && row_ins_must_modify_rec(cursor)) {
+	        sql_print_information("[%s:%d]", __FILE__, __LINE__);
 		/* There is already an index entry with a long enough common
 		prefix, we must convert the insert into a modify of an
 		existing record */
@@ -2591,11 +2617,12 @@ err_exit:
 		if(index->last_sel_cur) {
 			index->last_sel_cur->invalid = true;
 		}
-
+		sql_print_information("[%s:%d]", __FILE__, __LINE__);
 		err = row_ins_clust_index_entry_by_modify(
 			&pcur, flags, mode, &offsets, &offsets_heap,
 			entry_heap, entry, thr, &mtr);
 
+		sql_print_information("[%s:%d]", __FILE__, __LINE__);
 		if (err == DB_SUCCESS && dict_index_is_online_ddl(index)) {
 			row_log_table_insert(btr_cur_get_rec(cursor), entry,
 					     index, offsets);
@@ -2605,7 +2632,7 @@ err_exit:
 		mem_heap_free(entry_heap);
 	} else {
 		rec_t*	insert_rec;
-
+		sql_print_information("[%s:%d] begin to insert record", __FILE__, __LINE__);
 		if (mode != BTR_MODIFY_TREE) {
 			ut_ad((mode & ~BTR_ALREADY_S_LATCHED)
 			      == BTR_MODIFY_LEAF);
@@ -2613,6 +2640,7 @@ err_exit:
 				flags, cursor, &offsets, &offsets_heap,
 				entry, &insert_rec, &big_rec,
 				n_ext, thr, &mtr);
+			sql_print_information("[%s:%d] call btr_cur_optimistic_insert, err: %d", __FILE__, __LINE__, err);
 		} else {
 			if (buf_LRU_buf_pool_running_out()) {
 
@@ -2627,16 +2655,22 @@ err_exit:
 				&offsets, &offsets_heap,
 				entry, &insert_rec, &big_rec,
 				n_ext, thr, &mtr);
-
+			sql_print_information("[%s:%d] call btr_cur_optimistic_insert, err: %d", __FILE__, __LINE__, err);
 			if (err == DB_FAIL) {
 				err = btr_cur_pessimistic_insert(
 					flags, cursor,
 					&offsets, &offsets_heap,
 					entry, &insert_rec, &big_rec,
 					n_ext, thr, &mtr);
+				sql_print_information("[%s:%d] call btr_cur_pessimistic_insert, err: %d", __FILE__, __LINE__, err);
 			}
 		}
 
+		if (insert_rec != NULL){
+		  sql_print_information("[%s:%d] insert record heap_no: %lu", __FILE__, __LINE__, page_rec_get_heap_no(insert_rec));
+		}else{
+		  sql_print_information("[%s:%d] insert record is NULL", __FILE__, __LINE__);
+		}
 		if (big_rec != NULL) {
 			mtr_commit(&mtr);
 
@@ -3261,7 +3295,7 @@ row_ins_clust_index_entry(
 	ulint	n_uniq;
 
 	DBUG_ENTER("row_ins_clust_index_entry");
-
+	sql_print_information("[%s:%d] enter row_ins_clust_index_entry", __FILE__, __LINE__);
 	if (!index->table->foreign_set.empty()) {
 		err = row_ins_check_foreign_constraints(
 			index->table, index, entry, thr);
@@ -3356,7 +3390,7 @@ row_ins_sec_index_entry(
 	DBUG_EXECUTE_IF("row_ins_sec_index_entry_timeout", {
 			DBUG_SET("-d,row_ins_sec_index_entry_timeout");
 			return(DB_LOCK_WAIT);});
-
+	sql_print_information("[%s:%d] enter row_ins_sec_index_entry", __FILE__, __LINE__);
 	if (!index->table->foreign_set.empty()) {
 		err = row_ins_check_foreign_constraints(index->table, index,
 							entry, thr);
@@ -3432,7 +3466,7 @@ row_ins_index_entry(
 	DBUG_EXECUTE_IF("row_ins_index_entry_timeout", {
 			DBUG_SET("-d,row_ins_index_entry_timeout");
 			return(DB_LOCK_WAIT);});
-
+	sql_print_information("[%s:%d] enter row_ins_index_entry", __FILE__, __LINE__);
 	if (dict_index_is_clust(index)) {
 		return(row_ins_clust_index_entry(index, entry, thr, 0, false));
 	} else {
@@ -3573,7 +3607,7 @@ row_ins_index_entry_step(
 	dberr_t	err;
 
 	DBUG_ENTER("row_ins_index_entry_step");
-
+	sql_print_information("[%s:%d] enter row_ins_entry_step", __FILE__, __LINE__);
 	ut_ad(dtuple_check_typed(node->row));
 
 	err = row_ins_index_entry_set_vals(node->index, node->entry, node->row);
@@ -3584,6 +3618,13 @@ row_ins_index_entry_step(
 
 	ut_ad(dtuple_check_typed(node->entry));
 
+	if (node->entry != NULL)
+	{
+	  for (uint i = 0; i < node->entry->n_fields; i++)
+	  {
+	    sql_print_information("[%s:%d] idx: %d, data: %p", __FILE__, __LINE__, i, node->entry->fields[i].data);
+	  }
+	}
 	err = row_ins_index_entry(node->index, node->entry, thr);
 
 	DEBUG_SYNC_C_IF_THD(thr_get_trx(thr)->mysql_thd,
@@ -3696,7 +3737,7 @@ row_ins(
 	dberr_t	err;
 
 	DBUG_ENTER("row_ins");
-
+	sql_print_information("[%s:%d] enter row_ins", __FILE__, __LINE__);
 	DBUG_PRINT("row_ins", ("table: %s", node->table->name.m_name));
 
 	if (node->state == INS_NODE_ALLOC_ROW_ID) {
@@ -3721,20 +3762,30 @@ row_ins(
 	ut_ad(node->state == INS_NODE_INSERT_ENTRIES);
 
 	while (node->index != NULL) {
-		if (node->index->type != DICT_FTS) {
-			err = row_ins_index_entry_step(node, thr);
-			switch(err) {
-			case DB_SUCCESS:
-				break;
-			case DB_DUPLICATE_KEY:
-				thr_get_trx(thr)->error_state
-						= DB_DUPLICATE_KEY;
-				thr_get_trx(thr)->error_index
-						= node->index;
-			//fall through
-			default:
-				DBUG_RETURN(err);
+	        if (node->index->type != DICT_FTS) {
+		  sql_print_information("[%s:%d] in row_ins, begin to enter row_ins_index_entry_step", __FILE__, __LINE__);
+			  
+		  if (node->entry != NULL)
+		    {
+		      for (uint i = 0; i < node->entry->n_fields; i++)
+			{
+			  sql_print_information("[%s:%d] idx: %d, data: %p", __FILE__, __LINE__, i, node->entry->fields[i].data);
 			}
+		    }
+			
+		  err = row_ins_index_entry_step(node, thr);
+		  switch(err) {
+		  case DB_SUCCESS:
+		    break;
+		  case DB_DUPLICATE_KEY:
+		    thr_get_trx(thr)->error_state
+		      = DB_DUPLICATE_KEY;
+		    thr_get_trx(thr)->error_index
+		      = node->index;
+		    //fall through
+		  default:
+		    DBUG_RETURN(err);
+		  }
 		}
 
 		node->index = dict_table_get_next_index(node->index);

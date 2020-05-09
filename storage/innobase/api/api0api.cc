@@ -31,7 +31,7 @@ InnoDB Native API
 2008-08-01 Created Sunny Bains
 3/20/2011 Jimmy Yang extracted from Embedded InnoDB
 *******************************************************/
-
+#include "log.h"
 #include "ha_prototypes.h"
 
 #include "api0api.h"
@@ -1120,6 +1120,7 @@ ib_cursor_commit_trx(
 
 	ut_ad(prebuilt->trx == (trx_t*) ib_trx);
 #endif /* UNIV_DEBUG */
+	sql_print_information("[%s:%d] enter ib_cursor_commit_trx", __FILE__, __LINE__);
 	ib_trx_commit(ib_trx);
 	cursor->valid_trx = FALSE;
 	return(err);
